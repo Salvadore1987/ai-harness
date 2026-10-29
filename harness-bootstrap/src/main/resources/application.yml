@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: ${HARNESS_APP_NAME:harness}
+  main:
+    banner-mode: ${HARNESS_BANNER_MODE:off}
+    log-startup-info: ${HARNESS_LOG_STARTUP_INFO:false}
+    lazy-initialization: ${HARNESS_LAZY_INIT:true}
+  config:
+    import: optional:file:${HARNESS_HOME:${user.home}/.harness}/config.yml
+  ai:
+    ollama:
+      base-url: ${harness.ollama-base-url}
+      init:
+        pull-model-strategy: ${HARNESS_PULL_MODEL_STRATEGY:never}
+      chat:
+        model: ${harness.model}
+        num-ctx: ${HARNESS_NUM_CTX:65536}
+        temperature: ${HARNESS_TEMPERATURE:0.2}
+        keep-alive: ${HARNESS_KEEP_ALIVE:30m}
+
+harness:
+  model: ${HARNESS_MODEL:qwen3.5:27b}
+  ollama-base-url: ${HARNESS_OLLAMA_BASE_URL:http://localhost:11434}
+  home: ${HARNESS_HOME:${user.home}/.harness}
+  thinking:
+    enabled: ${HARNESS_THINKING_ENABLED:true}
+    display: ${HARNESS_THINKING_DISPLAY:stream}

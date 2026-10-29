@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The CLI owns the console: logs go only to a rolling file under the harness home. -->
+<Configuration status="WARN">
+  <Properties>
+    <Property name="logDir">${sys:HARNESS_LOG_DIR:-${env:HARNESS_HOME:-${sys:user.home}/.harness}/logs}</Property>
+  </Properties>
+  <Appenders>
+    <RollingFile name="File"
+        fileName="${logDir}/harness.log"
+        filePattern="${logDir}/harness.%i.log">
+      <PatternLayout pattern="%d{ISO8601} %-5level [%t] %logger{36} - %msg%n%throwable"/>
+      <Policies>
+        <SizeBasedTriggeringPolicy size="10 MB"/>
+      </Policies>
+      <DefaultRolloverStrategy max="5"/>
+    </RollingFile>
+  </Appenders>
+  <Loggers>
+    <Logger name="dev.localllm.harness" level="INFO"/>
+    <Logger name="org.springframework" level="WARN"/>
+    <Root level="WARN">
+      <AppenderRef ref="File"/>
+    </Root>
+  </Loggers>
+</Configuration>
