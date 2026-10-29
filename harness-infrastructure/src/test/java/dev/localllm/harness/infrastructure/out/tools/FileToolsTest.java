@@ -16,6 +16,7 @@ import dev.localllm.harness.application.model.ToolResult;
 import dev.localllm.harness.application.model.ToolSource;
 import dev.localllm.harness.application.model.ToolSpec;
 import dev.localllm.harness.infrastructure.TestProperties;
+import dev.localllm.harness.infrastructure.out.mcp.McpTestSupport;
 import dev.localllm.harness.infrastructure.out.tools.mapper.ToolSpecSpringAiMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,6 +35,7 @@ class FileToolsTest {
   void setUp() throws IOException {
     executor = new SpringAiToolExecutorAdapter(
         List.of(MethodToolCallbackProvider.builder().toolObjects(new FileTools()).build()),
+        McpTestSupport.noServers(),
         Mappers.getMapper(ToolSpecSpringAiMapper.class),
         TestProperties.create(cwd.resolve("home"), "http://localhost:11434", false));
     write("Calc.java", "class Calc {\n  int add(int a, int b) {\n    return a + b;\n  }\n}\n");

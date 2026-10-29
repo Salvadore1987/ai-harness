@@ -14,13 +14,13 @@ class ToolBlockParserTest {
   private static final List<ToolSpec> TOOLS = List.of(
       new ToolSpec("read_file", "Read a file", """
           {"type":"object","properties":{"path":{"type":"string"},"limit":{"type":"integer"}},\
-          "required":["path"]}""", ToolSource.BUILTIN),
+          "required":["path"]}""", ToolSource.BUILTIN, null),
       new ToolSpec("write_file", "Write a file", """
           {"type":"object","properties":{"path":{"type":"string"},\
-          "content":{"type":"string"}},"required":["path","content"]}""", ToolSource.BUILTIN),
+          "content":{"type":"string"}},"required":["path","content"]}""", ToolSource.BUILTIN, null),
       new ToolSpec("list_dir", "List a directory",
           "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"}}}",
-          ToolSource.BUILTIN));
+          ToolSource.BUILTIN, null));
 
   private final ToolBlockParser parser = new ToolBlockParser();
 

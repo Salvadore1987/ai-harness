@@ -68,7 +68,7 @@ final class OllamaTestSupport {
         TestProperties.create(Path.of("build/harness-home"), "http://localhost:11434", false);
     HarnessProperties properties = new HarnessProperties(defaults.model(),
         defaults.ollamaBaseUrl(), defaults.home(), defaults.thinking(), defaults.context(),
-        defaults.agent(), defaults.tools(), modes, ToolCallModeType.NATIVE);
+        defaults.agent(), defaults.tools(), modes, ToolCallModeType.NATIVE, defaults.mcp());
     return new ToolCallModeResolver(properties,
         new NativeToolCallMode(messageMapper, Mappers.getMapper(ToolCallSpringAiMapper.class)),
         new TextJsonToolCallMode(messageMapper, new ToolBlockParser()));

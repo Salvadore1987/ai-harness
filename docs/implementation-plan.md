@@ -25,7 +25,7 @@ Functional Requirements спецификации. Выполненные зад�
 | M2 | Сессии в JSONL, контекст, компакция, `@`-файлы | M1 | ✅ |
 | M3 | Агентный цикл, нативный tool calling, инструменты чтения | M2 | ✅ |
 | M4 | Запись файлов, shell, HTTP, запасной текстовый протокол | M3 | ✅ |
-| M5 | MCP-клиент (stdio + Streamable HTTP) | M3 | |
+| M5 | MCP-клиент (stdio + Streamable HTTP) | M3 | ✅ |
 | M6 | Native image (по ADR с замером) | M1–M5 | |
 
 M4 и M5 независимы друг от друга и могут идти параллельно после M3.
@@ -304,25 +304,79 @@ M4 и M5 независимы друг от друга и могут идти п
 
 ---
 
-## M5 — MCP
+## M5 — MCP ✅
 
 **Цель:** инструменты внешних MCP-серверов в общем реестре. Требование FR 12.
 
 ### Задачи
 
-1. Подключить `spring-ai-starter-mcp-client`, сверить свойства `spring.ai.mcp.client.*` в 2.0.2.
-2. stdio-серверы из `~/.harness/mcp.json` (формат Claude Desktop), Streamable HTTP из
-   `config.yml`; заголовки авторизации из переменных окружения через кастомизатор транспорта.
-3. `McpToolNaming` — префикс `mcp__<server>__<tool>`; регистрация в
-   `SpringAiToolExecutorAdapter` рядом с встроенными.
-4. `McpStartupReporter` — асинхронный старт, предупреждение о недоступном сервере без падения.
-5. `/tools` показывает источник инструмента (builtin / имя сервера).
+1. ✅ `spring-ai-starter-mcp-client` (MCP Java SDK 2.1.0). Свойства 2.0.2 сверены по исходникам:
+   по умолчанию клиенты инициализируются синхронно прямо в бине `mcpSyncClients`, а общий
+   `SyncMcpToolCallbackProvider` падает целиком, если не ответил один сервер. Поэтому
+   `initialized: false`, `toolcallback.enabled: false`, `request-timeout` 30 с, имя клиента
+   `harness`.
+2. ✅ stdio-серверы читает `McpServersFileReader` из `<harness.home>/mcp.json` в формате Claude
+   Desktop и отдаёт бином `List<NamedClientMcpTransport>` — автоконфигурация создаёт клиентов
+   для всех таких списков. `servers-configuration` Spring AI не используется: отсутствующий файл
+   роняет старт. Записи без `command` и команды, которых нет в `PATH`, пропускаются с
+   предупреждением; неизвестные поля игнорируются. Streamable HTTP — штатно,
+   `spring.ai.mcp.client.streamable-http.connections` в `config.yml`; заголовки
+   `harness.mcp.headers.<server>.<имя>` добавляет `McpHttpHeaders`
+   (`McpClientCustomizer<HttpClientStreamableHttpTransport.Builder>`), пустые не отправляются.
+3. ✅ `McpToolNaming` (`McpToolNamePrefixGenerator`) — `mcp__<server>__<tool>`, сервер берётся из
+   `title` клиента (Spring AI кладёт туда имя подключения), символы чистит `McpToolUtils.format`.
+   `SpringAiToolExecutorAdapter` строит реестр при первом обращении: встроенные, затем MCP;
+   `ToolSpec` получил поле `server`. Ответ MCP Spring AI отдаёт JSON-списком контента —
+   `McpTextToolCallback` превращает список текстов в текст, ошибку инструмента — в её текст.
+4. ✅ Асинхронный старт и отчёт разделены (в плане был один `McpStartupReporter`):
+   `McpConnector` (`@Lazy(false)`) по `ApplicationStartedEvent` подключает каждый сервер на
+   виртуальном потоке и строит провайдер на сервер, `servers()` ждёт их один раз;
+   `McpStartupReporter` копит предупреждения и печатает их на потоке, который ждёт инструменты
+   (первый агентный ход или `/tools`), чтобы не ломать строку ввода JLine. Закрытие —
+   `closeGracefully` в `destroy()`.
+5. ✅ `/tools`: колонка источника — `builtin` или имя сервера, ширина колонок по самому длинному
+   имени.
 
 ### Тесты
 
-- Тестовый stdio MCP-сервер (Java main на MCP SDK в test sources): инструменты появляются с
-  префиксом и вызываются.
-- Недоступный сервер → предупреждение, остальные инструменты работают.
+- ✅ `EchoMcpServer` (stdio-сервер на MCP SDK в test sources, запускается отдельной JVM с тестовым
+  classpath): инструменты `mcp__echo__echo` / `mcp__echo__fail` появляются после встроенных с
+  `server = echo`, вызываются через реестр, ответ — текст, ошибка — `Error: broken on purpose`.
+- ✅ Недоступный сервер (нет процесса, таймаут инициализации 1 с) → одно предупреждение, остальные
+  инструменты работают; `mcp.json`: нет файла, смешанные записи, битый JSON, нет `mcpServers`,
+  поиск команды в `PATH`; `McpToolNaming`, `McpTextToolCallback`, заголовки на WireMock.
+- ✅ `HarnessApplicationIT`: битый stdio-сервер в `mcp.json` и HTTP-сервер на WireMock —
+  контекст поднимается, встроенные инструменты на месте, заголовок `Authorization` из
+  `harness.mcp.headers` дошёл до сервера.
+- ✅ Live (`AgentLiveIT`): «вызови инструмент echo MCP-сервера» → `mcp__echo__echo`, 9.6 с.
+
+### Ручной сценарий
+
+- ✅ `bin/harness` с `HARNESS_HOME` во временном каталоге, в `mcp.json` — `EchoMcpServer` и
+  несуществующая команда: `/tools` показывает `mcp__echo__*` с источником `echo` и предупреждение
+  про `broken`; `--mode agent -p` вызывает `mcp__echo__echo` в `native` и `text-json`, ошибка
+  `mcp__echo__fail` доходит до модели текстом.
+- Проверить в настоящем терминале с реальными серверами (`@modelcontextprotocol/server-filesystem`
+  через `npx`, удалённый Streamable HTTP с токеном): в этой сессии скачивание npm-пакета было
+  запрещено.
+
+### Замеры и решения
+
+- Запуск и выход REPL: 2.8 с без MCP — как на `main` до подключения стартера; с двумя
+  stdio-серверами 3.0 с (старт JVM сервера идёт в фоне, на выходе — `TERM` и ожидание процесса).
+- Команда, которой нет, раньше держала первый `/tools` 20 с: `StdioClientTransport` теряет ошибку
+  запуска процесса, и `initialize` ждёт `initializationTimeout` (20 с, `request-timeout` на него не
+  влияет). Теперь такая команда отсекается при чтении `mcp.json`. Сервер, который запустился, но
+  молчит, по-прежнему ждёт 20 с — предупреждение «нет ответа на инициализацию».
+
+### Найдено и перенесено
+
+- Список инструментов фиксируется при первом обращении: сервер, подключившийся позже (или
+  сменивший список, `tools/list_changed`), до перезапуска не виден. Так префикс промпта не
+  меняется посреди сессии.
+- Ресурсы, промпты, sampling и elicitation MCP не поддерживаются — только инструменты.
+- Ошибка MCP-инструмента разбирается из `toString()` записей SDK (`SyncMcpToolCallback` не отдаёт
+  сам результат); при смене формата сообщение вернётся как есть.
 
 ---
 

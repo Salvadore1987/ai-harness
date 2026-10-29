@@ -68,8 +68,9 @@ Ollama, MCP и описание инструментов (`ToolCallback`) бер
 
 12. MCP-клиент через `spring-ai-starter-mcp-client`:
     - транспорты stdio и Streamable HTTP;
-    - stdio-серверы описываются в `~/.harness/mcp.json` (формат Claude Desktop);
-    - инструменты MCP попадают в общий реестр через `SyncMcpToolCallbackProvider` с префиксом `mcp__<server>__<tool>`.
+    - stdio-серверы описываются в `~/.harness/mcp.json` (формат Claude Desktop), Streamable HTTP — в `config.yml` (`spring.ai.mcp.client.streamable-http.connections`), заголовки авторизации — в `harness.mcp.headers.<server>` через плейсхолдеры переменных окружения;
+    - инструменты MCP попадают в общий реестр через `SyncMcpToolCallbackProvider` (отдельный на каждый сервер) с префиксом `mcp__<server>__<tool>`;
+    - серверы подключаются в фоне после старта; недоступный сервер даёт предупреждение `⚠ MCP-сервер «x» недоступен: …`, остальные инструменты работают.
 13. Каждый вызов инструмента отображается компактно (`⏺ read_file(src/Main.java)` + первые строки результата). Подробный вывод — флаг `--verbose`.
 14. Ограничений по разрешениям нет: инструменты выполняются без подтверждения. Защита от зацикливания модели остаётся:
     - `maxIterations` агентного цикла (по умолчанию 25);
@@ -162,7 +163,8 @@ harness-infrastructure   dev.localllm.harness.infrastructure
 ├── out/memory   InMemoryConversationAdapter (M1); TokenWindowChatMemory, JsonlChatMemoryRepository (M2)
 ├── out/console  ConsoleTurnOutputAdapter
 ├── out/tools    FileTools, ShellTools, HttpTools, SpringAiToolExecutorAdapter (M3–M4)
-├── out/mcp      McpToolNaming, McpStartupReporter (M5)
+├── out/mcp      McpConnector, McpServersFileReader, McpToolNaming, McpTextToolCallback,
+│                McpHttpHeaders, McpStartupReporter (M5)
 └── config       HarnessProperties (вкл. thinking), TerminalConfig
 
 harness-bootstrap   dev.localllm.harness.bootstrap
@@ -179,7 +181,7 @@ harness-bootstrap   dev.localllm.harness.bootstrap
 - **`SpringAiLlmGateway`** — единственное место, где вызывается `ChatClient`. По модели выбирает `ToolCallMode` через `ToolCallModeResolver`:
   - **`NativeToolCallMode`** (основной режим: qwen3.5, а также qwen2.5-coder, llama3.1+) — передаёт определения инструментов через `ChatClient.tools(...)` (только определения, без исполнения) и отключает автоматический `ToolCallingAdvisor` Spring AI 2.0 (в 2.0.2 нет `internalToolExecutionEnabled`, исполнение перенесено в этот advisor); вызовы берёт из `AssistantMessage.getToolCalls()`; результаты возвращает модели как `ToolResponseMessage`.
   - **`TextJsonToolCallMode`** (запасной режим для моделей без tools, например codellama) — добавляет описание инструментов из `ToolCallback.getToolDefinition()` в system prompt; разбирает блок ```` ```tool ```` из текста ответа через `ToolBlockParser`; результаты возвращает модели как `UserMessage`.
-- **`SpringAiToolExecutor`** — общий реестр всех `ToolCallback`: builtin `@Tool` + MCP `ToolCallbackProvider`. По имени вызывает `callback.call(argsJson, toolContext)` (в `ToolContext` — рабочая директория для относительных путей), оборачивает ответ в `ToolResult`, обрезает длинный вывод, замеряет длительность. Используется в обоих режимах, так что инструменты не дублируются.
+- **`SpringAiToolExecutor`** — общий реестр всех `ToolCallback`: builtin `@Tool` + MCP `ToolCallbackProvider`. MCP-инструменты добавляются при первом обращении к реестру, когда `McpConnector` дождался серверов; встроенные идут первыми и сохраняют свои имена. По имени вызывает `callback.call(argsJson, toolContext)` (в `ToolContext` — рабочая директория для относительных путей), оборачивает ответ в `ToolResult`, обрезает длинный вывод, замеряет длительность. Используется в обоих режимах, так что инструменты не дублируются.
 - **`TokenWindowChatMemory`** (реализует Spring AI `ChatMemory`):
   - `add()` дописывает сообщения в репозиторий;
   - `get()` возвращает system prompt → summary последней компакции → все сообщения после неё. Окно не обрезается на каждом ходе, чтобы префикс оставался стабильным для кеша Ollama;
@@ -308,7 +310,7 @@ harness:
 | `Message` | `id: UUID (v7)`, `role: Role (SYSTEM, USER, ASSISTANT, TOOL_RESULT)`, `content: String`, `toolCalls: List<ToolCall>`, `tokens: int`, `createdAt: Instant` |
 | `ToolCall` | `id: String` (UUIDv7 или id из нативного ответа), `name: String`, `argsJson: String` |
 | `ToolResult` | `callId: String`, `toolName: String`, `output: String`, `error: boolean`, `truncated: boolean`, `duration: Duration` |
-| `ToolSpec` | `name`, `description`, `inputSchema: String` (JSON Schema из `ToolDefinition`), `source: BUILTIN \| MCP` |
+| `ToolSpec` | `name`, `description`, `inputSchema: String` (JSON Schema из `ToolDefinition`), `source: BUILTIN \| MCP`, `server: String?` (имя MCP-сервера) |
 
 ### Relationships
 
@@ -348,16 +350,16 @@ spring:
         keep-alive: ${HARNESS_KEEP_ALIVE:30m}   # не выгружать модель между запросами
     mcp:
       client:
-        enabled: true
+        name: harness
         type: SYNC
-        request-timeout: 30s
-        stdio:
-          servers-configuration: file:${user.home}/.harness/mcp.json
-        streamable-http:
-          connections:
-            remote:
-              url: https://example.com
-              endpoint: /mcp
+        initialized: false      # McpConnector подключает серверы в фоне
+        toolcallback:
+          enabled: false        # общий провайдер падает целиком из-за одного сервера
+        request-timeout: ${HARNESS_MCP_REQUEST_TIMEOUT:30s}
+        # в config.yml:
+        # streamable-http:
+        #   connections:
+        #     remote: {url: https://example.com, endpoint: /mcp}
   config:
     import: optional:file:${user.home}/.harness/config.yml
 
@@ -379,9 +381,13 @@ harness:
     compact-threshold: 0.8
     keep-tail-share: 0.25     # доля окна под последние сообщения, остающиеся дословно после компакции
     chars-per-token: 3.5      # оценка без калибровки: prompt_eval_count не учитывает кеш
+  mcp:
+    headers:                  # в config.yml; пустое значение не отправляется
+      remote:
+        Authorization: "Bearer ${REMOTE_MCP_TOKEN:}"
 ```
 
-`~/.harness/mcp.json` (формат Claude Desktop, который понимает Spring AI):
+`~/.harness/mcp.json` (формат Claude Desktop). Его читает harness (`McpServersFileReader`), а не `spring.ai.mcp.client.stdio.servers-configuration`: у Spring AI отсутствующий файл роняет старт. Записи без `command` (удалённые серверы) и команды, которых нет в `PATH`, пропускаются с предупреждением:
 
 ```json
 {
@@ -538,7 +544,7 @@ harness:
 2. ✅ **M2 — сессии и контекст:** `JsonlChatMemoryRepository`, `TokenWindowChatMemory`, `--resume`/`/resume`/`/sessions`, `/compact`, `/context`, `@`-упоминания файлов.
 3. ✅ **M3 — агентный цикл, чтение:** `@Tool` `FileTools` (read/list/glob/grep), `SpringAiToolExecutor`, `NativeToolCallMode`, `AgentLoopService`, `/mode agent`.
 4. ✅ **M4 — запись, shell, запасной режим:** `write_file`, `edit_file` с diff, `run_command`, `http_fetch`, `TextJsonToolCallMode` + `ToolCallModeResolver`.
-5. **M5 — MCP:** `spring-ai-starter-mcp-client`, stdio + Streamable HTTP, префиксы имён, `/tools`.
+5. ✅ **M5 — MCP:** `spring-ai-starter-mcp-client`, stdio из `mcp.json` + Streamable HTTP из `config.yml` с заголовками, фоновое подключение `McpConnector`, префиксы `mcp__<server>__<tool>`, `/tools` с именем сервера.
 6. **M6 — native image.**
 
 ## Open Questions
@@ -560,5 +566,6 @@ harness:
 - **Стоимость рассуждений.** Рассуждения генерируются с той же скоростью (~15–20 токенов/с) и могут на сотни токенов задерживать ответ и каждый шаг агентного цикла. Ollama не позволяет ограничить их длину для qwen3.5, есть только вкл/выкл. Замер M3 (`AgentLiveIT`, «прочитай файл и ответь», прогретая модель): с thinking 8.5 с, без — 7.0 с. Решено: thinking в `agent` остаётся включённым по умолчанию, выключается `/think off` или `--no-think`.
 - **Оценка токенов.** Формула «символы / коэффициент» приблизительна. `JTokkitTokenCountEstimator` из Spring AI считает токены токенизатором OpenAI, а не Qwen, поэтому тоже даёт неточность. Калибровать по `usage.promptTokens`.
 - ✅ **Стриминг в нативном режиме** — решено на M3: стрим работает, блокирующий `call()` не нужен. В Spring AI 2.0.2 инструменты исполняет `ToolCallingAdvisor`, который `ChatClient` регистрирует сам; harness отключает его параметром `AdvisorParams.toolCallingAdvisorAutoRegister(false)`.
+- ✅ **MCP-клиент Spring AI 2.0.2** — сверено на M5 (MCP Java SDK 2.1.0): автоконфигурация по умолчанию инициализирует клиентов синхронно при создании бина, отсутствующий `servers-configuration` роняет контекст, а `SyncMcpToolCallbackProvider` на всех клиентов падает, если недоступен один. Поэтому клиенты создаются с `initialized: false`, общий провайдер выключен, `McpConnector` инициализирует каждый сервер на своём виртуальном потоке и строит провайдер на сервер. Без серверов стартер не меняет время старта (2.8 с на запуск и выход REPL и до, и после), с двумя stdio-серверами +0.2 с.
 - **Отсутствие разрешений** — сознательное решение. Если позже понадобится защита, `ToolExecutor` можно обернуть декоратором `PermissionGate` без изменения ядра.
 - **Отложено:** RAG по коду (Spring AI `VectorStore` + `nomic-embed-text`), несколько вызовов инструментов за один ответ в текстовом режиме, Windows, TUI.

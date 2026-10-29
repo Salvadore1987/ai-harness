@@ -75,12 +75,20 @@ public class AgentSlashCommands {
       println(argument.isEmpty() ? "Инструментов нет" : "Нет инструментов на " + argument);
       return;
     }
+    int nameWidth = tools.stream().mapToInt(tool -> tool.name().length()).max().orElse(0);
+    int sourceWidth = tools.stream().mapToInt(tool -> source(tool).length()).max().orElse(0);
+    String format = "%-" + nameWidth + "s  %-" + sourceWidth + "s  %s%n";
     PrintWriter writer = terminal.writer();
     for (ToolSummaryResult tool : tools) {
-      writer.printf(Locale.ROOT, "%-12s %-8s %s%n", tool.name(),
-          tool.source().name().toLowerCase(Locale.ROOT), firstSentence(tool.description()));
+      writer.printf(Locale.ROOT, format,
+          tool.name(), source(tool), firstSentence(tool.description()));
     }
     writer.flush();
+  }
+
+  private static String source(ToolSummaryResult tool) {
+    String server = tool.server();
+    return server == null ? tool.source().name().toLowerCase(Locale.ROOT) : server;
   }
 
   private static String name(ReplMode mode) {

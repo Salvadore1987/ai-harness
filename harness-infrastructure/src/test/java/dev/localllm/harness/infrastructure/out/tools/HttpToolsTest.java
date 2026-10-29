@@ -15,6 +15,7 @@ import dev.localllm.harness.application.model.ToolCall;
 import dev.localllm.harness.application.model.ToolResult;
 import dev.localllm.harness.infrastructure.TestProperties;
 import dev.localllm.harness.infrastructure.config.HarnessProperties;
+import dev.localllm.harness.infrastructure.out.mcp.McpTestSupport;
 import dev.localllm.harness.infrastructure.out.tools.mapper.ToolSpecSpringAiMapper;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
@@ -46,7 +47,7 @@ class HttpToolsTest {
     executor = new SpringAiToolExecutorAdapter(
         List.of(MethodToolCallbackProvider.builder()
             .toolObjects(new HttpTools(properties)).build()),
-        Mappers.getMapper(ToolSpecSpringAiMapper.class), properties);
+        McpTestSupport.noServers(), Mappers.getMapper(ToolSpecSpringAiMapper.class), properties);
   }
 
   @Test

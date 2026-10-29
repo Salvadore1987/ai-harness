@@ -18,6 +18,8 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.util.FileSystemUtils;
 import picocli.CommandLine;
 
+import dev.localllm.harness.application.model.ToolSpec;
+import dev.localllm.harness.application.port.out.ToolExecutorPort;
 import dev.localllm.harness.infrastructure.config.HarnessProperties.ToolCallModeType;
 import dev.localllm.harness.infrastructure.in.cli.HarnessCommand;
 import dev.localllm.harness.infrastructure.in.cli.handlers.PicocliExceptionHandler;
@@ -39,12 +41,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(
     classes = HarnessApplication.class,
     properties = {"harness.cli.enabled=false", "harness.home=build/test-harness-home",
-        "harness.tool-call-modes.[mistral7.2]=text-json"})
+        "harness.tool-call-modes.[mistral7.2]=text-json",
+        "harness.mcp.headers.remote.Authorization=Bearer it-token"})
 class HarnessApplicationIT {
 
   @RegisterExtension
   static WireMockExtension ollama = WireMockExtension.newInstance()
       .options(wireMockConfig().dynamicPort())
+      .build();
+
+  @RegisterExtension
+  static WireMockExtension mcpServer = WireMockExtension.newInstance()
+      .options(wireMockConfig().dynamicPort())
+      .resetOnEachTest(false)
       .build();
 
   private static final Path HOME = Path.of("build/test-harness-home");
@@ -58,14 +67,36 @@ class HarnessApplicationIT {
   @Autowired
   private ToolCallModeResolver toolCallModes;
 
+  @Autowired
+  private ToolExecutorPort toolExecutor;
+
   @BeforeAll
   static void cleanHome() throws IOException {
     FileSystemUtils.deleteRecursively(HOME);
+    Files.createDirectories(HOME);
+    Files.writeString(HOME.resolve("mcp.json"), """
+        {"mcpServers": {"broken": {"command": "/nonexistent/mcp-server"}}}
+        """, StandardCharsets.UTF_8);
   }
 
   @DynamicPropertySource
   static void ollamaUrl(DynamicPropertyRegistry registry) {
     registry.add("harness.ollama-base-url", ollama::baseUrl);
+    registry.add("spring.ai.mcp.client.streamable-http.connections.remote.url",
+        mcpServer::baseUrl);
+  }
+
+  @Test
+  void toolExecutor_UnavailableMcpServers_KeepsBuiltinToolsAndSendsConfiguredHeaders() {
+    // Act
+    List<ToolSpec> tools = toolExecutor.available();
+
+    // Assert
+    assertThat(tools).extracting(ToolSpec::name)
+        .contains("read_file", "write_file", "run_command", "http_fetch")
+        .noneMatch(name -> name.startsWith("mcp__"));
+    mcpServer.verify(postRequestedFor(urlEqualTo("/mcp"))
+        .withHeader("Authorization", equalTo("Bearer it-token")));
   }
 
   @Test

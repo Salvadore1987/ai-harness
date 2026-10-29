@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.validation.annotation.Validated;
 
 /**
@@ -25,6 +26,7 @@ import org.springframework.validation.annotation.Validated;
  * @param tools settings of the built-in tools
  * @param toolCallModes tool call mode by model name prefix; the longest matching prefix wins
  * @param defaultToolCallMode tool call mode of models no prefix matches
+ * @param mcp settings of the MCP servers
  */
 @ConfigurationProperties("harness")
 @Validated
@@ -37,7 +39,8 @@ public record HarnessProperties(
     @NotNull @Valid Agent agent,
     @NotNull @Valid Tools tools,
     @NotNull Map<String, ToolCallModeType> toolCallModes,
-    @NotNull ToolCallModeType defaultToolCallMode) {
+    @NotNull ToolCallModeType defaultToolCallMode,
+    @DefaultValue @NotNull @Valid Mcp mcp) {
 
   /**
    * Directory of the JSONL session files.
@@ -46,6 +49,15 @@ public record HarnessProperties(
    */
   public Path sessionsDirectory() {
     return home.resolve("sessions");
+  }
+
+  /**
+   * File with the stdio MCP servers in the Claude Desktop format.
+   *
+   * @return path of {@code mcp.json}
+   */
+  public Path mcpServersFile() {
+    return home.resolve("mcp.json");
   }
 
   /**
@@ -96,6 +108,15 @@ public record HarnessProperties(
       @NotBlank String shell,
       @NotNull Duration commandTimeout,
       @NotNull Duration httpTimeout) {
+  }
+
+  /**
+   * Settings of the MCP servers.
+   *
+   * @param headers HTTP headers by Streamable HTTP server name, sent with every request; values
+   *     usually come from environment variables through placeholders
+   */
+  public record Mcp(@DefaultValue @NotNull Map<String, Map<String, String>> headers) {
   }
 
   /**

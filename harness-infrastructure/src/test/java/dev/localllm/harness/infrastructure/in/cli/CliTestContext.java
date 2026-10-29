@@ -59,7 +59,8 @@ final class CliTestContext {
   final FakeSessionCatalogPort catalog = new FakeSessionCatalogPort();
   final FixedContextBudgetPort budget = new FixedContextBudgetPort(65536);
   final RecordingTurnOutputPort output = new RecordingTurnOutputPort();
-  final FakeToolExecutorPort tools = new FakeToolExecutorPort("read_file", "glob");
+  final FakeToolExecutorPort tools = new FakeToolExecutorPort("read_file", "glob")
+      .withMcpTool("mcp__fs__list_directory", "fs");
   final TurnCancellation cancellation = new TurnCancellation();
   final DisplayOptions displayOptions = new DisplayOptions();
   final FakeModelCatalogPort models =

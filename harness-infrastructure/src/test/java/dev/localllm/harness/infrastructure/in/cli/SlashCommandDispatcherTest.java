@@ -235,8 +235,9 @@ class SlashCommandDispatcherTest {
 
     // Assert
     assertThat(context.terminal.plainText())
-        .contains("read_file    builtin  Fake read_file")
-        .contains("glob         builtin  Fake glob");
+        .contains("read_file                builtin  Fake read_file")
+        .contains("glob                     builtin  Fake glob")
+        .contains("mcp__fs__list_directory  fs       Fake mcp__fs__list_directory");
   }
 
   @Test

@@ -52,7 +52,7 @@ class ToolCallModeResolverTest {
         TestProperties.create(Path.of("build/harness-home"), "http://localhost:11434", false);
     HarnessProperties properties = new HarnessProperties(defaults.model(),
         defaults.ollamaBaseUrl(), defaults.home(), defaults.thinking(), defaults.context(),
-        defaults.agent(), defaults.tools(), modes, defaultMode);
+        defaults.agent(), defaults.tools(), modes, defaultMode, defaults.mcp());
     return new ToolCallModeResolver(properties, nativeMode, textJsonMode);
   }
 }

@@ -1,5 +1,6 @@
 package dev.localllm.harness.infrastructure.out.tools.mapper;
 
+import org.jspecify.annotations.Nullable;
 import org.mapstruct.Mapper;
 import org.springframework.ai.tool.definition.ToolDefinition;
 
@@ -17,10 +18,12 @@ public interface ToolSpecSpringAiMapper {
    *
    * @param definition Spring AI definition
    * @param source where the tool comes from
+   * @param server MCP server providing the tool, {@code null} for built-in tools
    * @return core tool description
    */
-  default ToolSpec toToolSpec(ToolDefinition definition, ToolSource source) {
+  default ToolSpec toToolSpec(
+      ToolDefinition definition, ToolSource source, @Nullable String server) {
     return new ToolSpec(
-        definition.name(), definition.description(), definition.inputSchema(), source);
+        definition.name(), definition.description(), definition.inputSchema(), source, server);
   }
 }
