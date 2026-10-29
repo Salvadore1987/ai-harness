@@ -368,8 +368,10 @@ harness:
     max-output-chars: 8000
     command-timeout: 120s
   context:
+    num-ctx: 65536            # запрашиваемое окно; фактическое читается из /api/ps
     compact-threshold: 0.8
-    chars-per-token: 3.5    # калибруется по usage.promptTokens из ответов Ollama
+    keep-last-messages: 4     # сообщений остаются дословно после компакции
+    chars-per-token: 3.5      # оценка без калибровки: prompt_eval_count не учитывает кеш
 ```
 
 `~/.harness/mcp.json` (формат Claude Desktop, который понимает Spring AI):
@@ -525,7 +527,7 @@ harness:
 ## Этапы реализации
 
 1. ✅ **M1 — каркас и чат:** три Gradle-модуля, Spring Boot 4.1.2 + Spring AI 2.0.2, Picocli + JLine REPL, `OllamaChatAdapter` (стриминг без tools), `SendMessageService`, режим размышлений (требование 9, без `persist`), Ctrl+C, режим `-p`, slash-команды `/help /exit /clear /model /think`, история в памяти процесса.
-2. **M2 — сессии и контекст:** `JsonlChatMemoryRepository`, `TokenWindowChatMemory`, `--resume`/`/resume`/`/sessions`, `/compact`, `/context`, `@`-упоминания файлов.
+2. ✅ **M2 — сессии и контекст:** `JsonlChatMemoryRepository`, `TokenWindowChatMemory`, `--resume`/`/resume`/`/sessions`, `/compact`, `/context`, `@`-упоминания файлов.
 3. **M3 — агентный цикл, чтение:** `@Tool` `FileTools` (read/list/glob/grep), `SpringAiToolExecutor`, `NativeToolCallMode`, `AgentLoopService`, `/mode agent`.
 4. **M4 — запись, shell, запасной режим:** `write_file`, `edit_file` с diff, `run_command`, `http_fetch`, `TextJsonToolCallMode` + `ToolCallModeResolver`.
 5. **M5 — MCP:** `spring-ai-starter-mcp-client`, stdio + Streamable HTTP, префиксы имён, `/tools`.
@@ -542,7 +544,8 @@ harness:
   Сигнатуры `ToolCallingManager`, `ChatMemoryRepository` и свойства MCP-клиента сверяются на M2–M5.
 - ✅ **Модель** — решено: **`qwen3.5:27b`** с нативным tool calling, режим `native` по умолчанию. Codellama и текстовый протокол остаются запасным вариантом для моделей без tools.
 - ✅ **Железо** — решено: Apple M3 Max, 48 ГБ. Стартовое значение `num_ctx` — 65536, настройки Ollama описаны в разделе Deployment.
-- **`num_ctx` на MLX-раннере.** Замер M1: установленная `qwen3.5:27b` — NVFP4 на MLX-раннере Ollama 0.40 (19.8 ГБ, `100% GPU`). Harness отправляет `options.num_ctx = 65536` (проверено тестом `HarnessApplicationIT`), но `ollama ps` показывает `CONTEXT 32768` и при прямом `curl` с тем же `num_ctx` — тоже: MLX-раннер не применяет `num_ctx` из запроса. Нужно выяснить, задаётся ли контекст MLX-раннера переменной сервера (`OLLAMA_CONTEXT_LENGTH`) и сколько из нативных 262144 помещается в 48 ГБ. До этого бюджет компакции (M2) считать от фактического контекста из `ollama ps`, а не от `HARNESS_NUM_CTX`.
+- ✅ **`num_ctx` на MLX-раннере** — решено в M2. Раннер применяет `num_ctx` только при загрузке модели и не перезагружает её, если позже приходит другое значение (`32768` в M1 — модель была загружена раньше с другим окном; после перезагрузки `/api/ps` показывает `context_length: 65536`). Harness берёт бюджет компакции из `/api/ps` (`OllamaContextBudgetAdapter`), `HARNESS_NUM_CTX` — только запасное значение. Чтобы сменить окно, модель нужно выгрузить: `ollama stop qwen3.5:27b`.
+- **Компакция по бюджету токенов.** Сейчас дословно остаются последние `keep-last-messages` сообщений; если в них большой `@`-файл, компакция почти ничего не освобождает (замер M2: ~11 339 → ~11 324 токенов). План — хранить хвост по доле окна и заменять старые вложения ссылкой (M3.0 в плане реализации).
 - **Задержка стрима на один чанк.** `OllamaApi.streamingChat` группирует чанки через `windowUntil` и отдаёт каждый только с приходом следующего; при обрыве стрима последний чанк теряется. На отзывчивость при живом стриме не влияет (проверено `OllamaLiveIT`). Учесть при разборе `tool_calls` в M3.
 - **Холодный старт CLI** — 1.6 с (`harness --version`, JVM без CDS); требование ≤ 2 с выполнено. Ход с прогретой моделью без размышлений — около 0.3–0.5 с поверх старта.
 - ✅ **Режим размышлений** — решено (требование 9): включён по умолчанию, рассуждения выводятся приглушённым цветом, в историю не попадают, переключение — `/think on|off`. На M1 проверить, как Spring AI 2.0.2 передаёт параметр `think` в `OllamaChatOptions` и где отдаёт текст рассуждений в стриме (отдельное поле или метаданные `AssistantMessage`). Если Spring AI не прокидывает его в стрим, в адаптере `llm` понадобится обход через `OllamaApi`.

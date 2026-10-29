@@ -1,8 +1,9 @@
 # Harness
 
 Локальный AI-агент для терминала на Java 25, Spring Boot 4.1 и Spring AI 2.0 поверх Ollama.
-Сейчас реализован этап M1: чат-REPL со стримингом, режимом размышлений, отменой по Ctrl+C и
-режимом одиночного запроса. Спецификация — [docs/java-ai-harness.md](docs/java-ai-harness.md),
+Реализованы этапы M1–M2: чат-REPL со стримингом, режимом размышлений, отменой по Ctrl+C,
+режимом одиночного запроса, сессиями в JSONL с продолжением, автоматической компакцией истории и
+подстановкой файлов через `@путь`. План этапов — [docs/implementation-plan.md](docs/implementation-plan.md). Спецификация — [docs/java-ai-harness.md](docs/java-ai-harness.md),
 архитектурные решения — [docs/adr/ADR-001-architecture.md](docs/adr/ADR-001-architecture.md).
 
 ## Требования
@@ -20,12 +21,17 @@ bin/harness -p "Объясни, что такое CAP" # один запрос, 
 ln -s "$PWD/bin/harness" ~/.local/bin/harness
 ```
 
-Опции: `--model <тег>`, `--cwd <каталог>`, `--no-think`, `--verbose` (статистика токенов),
-`-p/--print <запрос>`, `--help`, `--version`.
+Опции: `--model <тег>`, `--cwd <каталог>`, `--resume [ID]` (последняя сессия директории или
+указанная), `--no-think`, `--verbose` (статистика токенов), `-p/--print <запрос>`, `--help`,
+`--version`.
 
-В REPL: `/help`, `/exit`, `/clear`, `/model [имя]`, `/think [on|off]`. Многострочный ввод —
-`\` в конце строки или Alt+Enter. Ctrl+C во время генерации останавливает её, дважды на пустой
-строке — выход.
+В REPL: `/help`, `/exit`, `/clear`, `/sessions`, `/resume [id]`, `/compact`, `/context`,
+`/model [имя]`, `/think [on|off]`. `@путь` прикладывает файл из рабочей директории (Tab —
+автодополнение). Многострочный ввод — `\` в конце строки или Alt+Enter. Ctrl+C во время
+генерации останавливает её, дважды на пустой строке — выход.
+
+Сессии хранятся в `~/.harness/sessions/<id>.jsonl`. Когда история занимает 80 % окна модели
+(фактическое окно читается из `ollama ps`), старая часть заменяется сводкой.
 
 ## Конфигурация
 
@@ -35,12 +41,16 @@ ln -s "$PWD/bin/harness" ~/.local/bin/harness
 |---|---|---|
 | `HARNESS_MODEL` | `qwen3.5:27b` | Модель на старте |
 | `HARNESS_OLLAMA_BASE_URL` | `http://localhost:11434` | Адрес Ollama |
-| `HARNESS_NUM_CTX` | `65536` | Окно контекста (`num_ctx`) |
+| `HARNESS_NUM_CTX` | `65536` | Окно контекста (`num_ctx`); применяется при загрузке модели |
+| `HARNESS_COMPACT_THRESHOLD` | `0.8` | Доля окна, при которой история сжимается |
+| `HARNESS_KEEP_LAST_MESSAGES` | `4` | Сколько последних сообщений остаётся дословно |
+| `HARNESS_CHARS_PER_TOKEN` | `3.5` | Символов на токен для оценки |
 | `HARNESS_KEEP_ALIVE` | `30m` | Сколько Ollama держит модель в памяти |
 | `HARNESS_TEMPERATURE` | `0.2` | Температура |
 | `HARNESS_THINKING_ENABLED` | `true` | Режим размышлений на старте |
 | `HARNESS_THINKING_DISPLAY` | `stream` | `stream` — текст рассуждений, `summary` — одна строка |
-| `HARNESS_HOME` | `~/.harness` | История ввода, логи, `config.yml` |
+| `HARNESS_THINKING_PERSIST` | `false` | Писать рассуждения в файл сессии (для отладки) |
+| `HARNESS_HOME` | `~/.harness` | Сессии, история ввода, логи, `config.yml` |
 
 Логи — только в `~/.harness/logs/harness.log`, консоль занята диалогом.
 

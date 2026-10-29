@@ -22,7 +22,7 @@ Functional Requirements спецификации. Выполненные зад�
 | Этап | Цель | Зависит от | Статус |
 |---|---|---|---|
 | M1 | Каркас и чат-REPL со стримингом и thinking | — | ✅ |
-| M2 | Сессии в JSONL, контекст, компакция, `@`-файлы | M1 | |
+| M2 | Сессии в JSONL, контекст, компакция, `@`-файлы | M1 | ✅ |
 | M3 | Агентный цикл, нативный tool calling, инструменты чтения | M2 | |
 | M4 | Запись файлов, shell, HTTP, запасной текстовый протокол | M3 | |
 | M5 | MCP-клиент (stdio + Streamable HTTP) | M3 | |
@@ -58,65 +58,72 @@ M4 и M5 независимы друг от друга и могут идти п
 
 - Проверка в настоящем терминале: двойной Ctrl+C, Alt+Enter, `/clear`, вид цветов → ручной
   сценарий M2
-- `num_ctx` не применяется MLX-раннером (см. Open Questions спеки) → задача M2.1
+- ✅ `num_ctx` не применяется MLX-раннером (см. Open Questions спеки) → решено в M2.1
 
 ---
 
-## M2 — сессии и контекст
+## M2 — сессии и контекст ✅
 
 **Цель:** история переживает перезапуск, контекст не переполняется, файлы подставляются через
 `@`. Требования FR 5, 7, 8, 9 (`persist`), команды `/sessions /resume /compact /context`.
 
 ### Задачи
 
-1. **Фактический бюджет контекста.** Выяснить, как задать контекст MLX-раннера
-   (`OLLAMA_CONTEXT_LENGTH` на сервере), и добавить в `ModelCatalogPort` чтение фактического
-   контекста загруженной модели из `/api/ps`. Бюджет компакции считать от минимума
-   `HARNESS_NUM_CTX` и фактического значения.
-2. **Модели и порты:**
-   - `application/model`: `SessionInfo` (id, cwd, model, title, createdAt), `ContextUsage`,
-     `CompactionSummary`;
-   - `port/out`: `SessionCatalogPort` (create, list по cwd, find), расширить `ConversationPort`
-     методами `usage(SessionId)` и `compact(SessionId, summary, upTo)`;
-   - `port/in`: `ResumeSessionUseCase`, `ListSessionsQuery`, `CompactSessionUseCase`,
-     `GetContextUsageQuery`; команды и результаты к ним.
-3. **Хранилище** (`infrastructure/out/memory`):
-   - `JsonlChatMemoryRepository` — реализация Spring AI `ChatMemoryRepository` (сверить
-     сигнатуры 2.0.2), строки `meta` / `message` / `compaction`, дозапись, атомарная перезапись
-     при несовпадении префикса, пропуск битых строк;
-   - `TokenWindowChatMemory` — Spring AI `ChatMemory`: system prompt → summary → сообщения после
-     компакции, без обрезки на каждом ходе;
-   - `JsonlConversationAdapter` + `JsonlSessionCatalogAdapter` реализуют порты поверх них;
-     `InMemoryConversationAdapter` остаётся для тестов;
-   - мапперы `JsonlLineMapper` (MapStruct), DTO `JsonlLine`.
-4. **Оценка токенов:** `TokenEstimator` (символы / `chars-per-token`) с калибровкой по
-   `usage.promptTokens` последнего хода.
-5. **Компакция:** `CompactSessionService` — суммаризация старой части истории тем же
-   `num_ctx`; автоматический запуск при 80 %; запасной вариант — отбросить старые сообщения с
-   предупреждением.
-6. **CLI:** `--resume [id]`, `/resume [id]`, `/sessions`, `/compact`, `/context`;
-   `FileMentionExpander` для `@путь` (только внутри `--cwd`); автодополнение путей после `@`.
-7. **Thinking `persist`:** при `harness.thinking.persist=true` писать рассуждения в JSONL, не
-   загружая их в окно.
+1. ✅ **Фактический бюджет контекста.** Выяснено: MLX-раннер применяет `num_ctx` только при
+   загрузке модели и не перезагружает её при другом значении. Отдельный порт `ContextBudgetPort`,
+   адаптер `OllamaContextBudgetAdapter` читает `context_length` из `GET /api/ps`; если модель не
+   загружена или сервер недоступен — `harness.context.num-ctx`.
+2. ✅ **Модели и порты:** `SessionInfo`, `ContextPolicy`, `ContextUsage`, `CompactionOutcome`;
+   `SessionCatalogPort`, `ContextBudgetPort`; `ConversationPort` расширен `compact` и
+   `recordThinking`; `TurnOutputPort.onCompaction`; use case'ы `ResumeSessionUseCase`,
+   `ListSessionsQuery`, `CompactSessionUseCase`, `GetContextUsageQuery`; `SessionNotFoundException`
+   (300003). `/clear` больше не удаляет историю — старая сессия остаётся доступной для `/resume`.
+3. ✅ **Хранилище** (`infrastructure/out/memory`): `JsonlChatMemoryRepository` (Spring AI
+   `ChatMemoryRepository` + методы для `meta` / `compaction` / `thinking`), `TokenWindowChatMemory`
+   (Spring AI `ChatMemory`, окно после последней компакции), `ChatMemoryConversationAdapter`,
+   `JsonlSessionCatalogAdapter`, мапперы `JsonlLineMapper` и `ChatMessageMemoryMapper`,
+   отдельный бин `jsonlMapper`. `InMemoryConversationAdapter` удалён — для тестов есть фейк в
+   `testFixtures`.
+4. ✅ **Оценка токенов:** `ContextMeter` (символы / `chars-per-token` + 4 токена на сообщение).
+   Калибровка по `prompt_eval_count` отклонена: Ollama считает в нём только токены вне кеша
+   промпта.
+5. ✅ **Компакция:** `ConversationCompactor` (общий для авто и `/compact`) — сводка старой части
+   истории той же моделью без thinking; автоматически после хода при `compact-threshold`;
+   если модель не ответила — старые сообщения отбрасываются без сводки.
+6. ✅ **CLI:** `--resume [ID]`, `/sessions`, `/resume [id|префикс]`, `/compact`, `/context`,
+   `/clear`; `FileMentionExpander` (`@путь` внутри `--cwd`, до 256 КБ, только UTF-8) и
+   `FileMentionCompleter`; slash-команды разделены на `SessionSlashCommands` и
+   `ModelSlashCommands`; `SessionErrorHandler`.
+7. ✅ **Thinking `persist`:** `HARNESS_THINKING_PERSIST=true` пишет строки `thinking` в JSONL,
+   в окно они не попадают.
 
 ### Тесты
 
-- Unit: `TokenWindowChatMemory` (стабильный префикс, summary, порог 80 %),
-  `JsonlChatMemoryRepository` на `@TempDir` (дозапись, перезапись, битые строки),
-  `FileMentionExpander` (выход за `cwd` запрещён), сервисы на фейках.
-- WireMock: компакция отправляет запрос суммаризации с тем же `num_ctx`.
-- Live: два хода → перезапуск с `--resume` → модель помнит контекст.
+- ✅ Unit ядра: `SendMessageService` (регистрация сессии, thinking, автокомпакция),
+  `ConversationCompactor` (сводка, отказ модели, отмена, короткая история), `ContextMeter`,
+  `ResumeSessionService` (последняя, префикс, полный id из другой директории, неоднозначный префикс).
+- ✅ `@TempDir`: дозапись, атомарная перезапись с сохранением `meta`, битые строки, окно после
+  компакции, компакция без сводки не «воскрешает» сообщения, `thinking` только при `persist`,
+  список сессий по директории; `FileMentionExpander` (выход за `cwd`, нет файла, > 256 КБ, бинарный).
+- ✅ WireMock: `/api/ps` — загруженная модель, не загружена, сервер недоступен. Запрос сводки идёт
+  через тот же `OllamaChatAdapter`, `num_ctx` в нём проверен `HarnessApplicationIT`.
+- ✅ Smoke контекста: файл сессии создаётся с `meta` и двумя сообщениями.
+- ✅ Live (вручную): ход с `@`-файлом → новый процесс с `--resume` → модель помнит имя и вопрос;
+  автокомпакция на реальной модели; `--resume` после компакции.
 
 ### Ручной сценарий
 
-Диалог из трёх ходов → `/exit` → `harness --resume` → вопрос о прошлом ходе; `/context`;
-`/compact`; `@README.md объясни`; двойной Ctrl+C; Alt+Enter; `/clear`.
+- ✅ `/sessions`, `/context`, `/clear`, `/resume`, `/compact` в псевдотерминале
+- Проверить в настоящем терминале: двойной Ctrl+C, Alt+Enter, Tab-дополнение `@путь`, цвета
 
-### Риски
+### Найдено и перенесено
 
-- Сигнатуры `ChatMemoryRepository` в 2.0.2 могут отличаться от 1.x — сверить по исходникам до
-  реализации.
-- Без решения задачи 1 порог компакции будет считаться от неверного окна.
+- Компакция оставляет дословно последние `keep-last-messages` сообщений. Если в них лежит
+  большой приложенный файл, `/compact` почти ничего не освобождает (замер: ~11 339 → ~11 324
+  токенов). Нужно хранить хвост по бюджету токенов, а большие вложения в старых сообщениях
+  заменять ссылкой на файл → задача M3.0.
+- Холодный ход с промптом ~12.5k токенов занял ~87 с вместе со сводкой — замерить prefill
+  отдельно (сквозная задача про `--verbose`).
 
 ---
 
@@ -127,6 +134,9 @@ M4 и M5 независимы друг от друга и могут идти п
 
 ### Задачи
 
+0. **Компакция по бюджету токенов** (перенесено из M2): `ConversationCompactor` оставляет хвост
+   не по числу сообщений, а по доле окна; содержимое `<file>` в сжимаемой части заменяется
+   ссылкой `@путь`.
 1. **Модели и порты:** `ToolSpec`, `ToolCall`, `ToolResult`; `ToolExecutorPort`
    (`available()`, `execute(ToolCall)`); расширить `ChatModelPort` ответом с `toolCalls`;
    `RunAgentTurnUseCase` + `RunAgentTurnCommand`.
