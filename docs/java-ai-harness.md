@@ -122,7 +122,7 @@ Ollama, MCP и описание инструментов (`ToolCallback`) бер
 | Язык | Java 25 (records, sealed interfaces, pattern matching, virtual threads) |
 | Фреймворк | Spring Boot 4.1.2 (с ней собрана Spring AI 2.0.2), `WebApplicationType.NONE` |
 | LLM | Spring AI 2.0.2 (BOM `org.springframework.ai:spring-ai-bom:2.0.2`), `spring-ai-starter-model-ollama`: `OllamaChatModel`, `ChatClient`, стриминг через `Flux<ChatResponse>` |
-| Инструменты | Spring AI Tool Calling: `@Tool`, `ToolCallback`, `ToolCallbackProvider`, `ToolCallingManager` (с `internalToolExecutionEnabled=false`) |
+| Инструменты | Spring AI Tool Calling: `@Tool`, `ToolCallback`, `ToolCallbackProvider`, `ToolCallingManager`; автоматический `ToolCallingAdvisor` отключён (`AdvisorParams.toolCallingAdvisorAutoRegister(false)`) — цикл ведёт harness |
 | Память | Интерфейсы Spring AI `ChatMemory` / `ChatMemoryRepository`, собственные реализации на JSONL |
 | MCP | `spring-ai-starter-mcp-client` (MCP Java SDK под капотом), stdio + Streamable HTTP |
 | CLI | Picocli 4.7 (без стартера: `HarnessCommand` — Spring-бин, `PicocliRunner` запускает его) — аргументы запуска; JLine 3.30 — REPL, история, автодополнение, ANSI |
@@ -177,9 +177,9 @@ harness-bootstrap   dev.localllm.harness.bootstrap
 - **`ChatService`** — режим `chat`. Сохраняет сообщение пользователя в `ConversationMemory`, берёт окно истории, стримит ответ через `LlmGateway` (без инструментов) в `TokenSink`, сохраняет ответ.
 - **`AgentLoopService`** — режим `agent`. В цикле: окно истории → `LlmGateway.turn(...)` с инструментами → если есть `ToolCall`, выполнить через `ToolExecutor`, записать результат в память → повтор. Цикл останавливается, когда в ответе нет вызова, или по лимитам.
 - **`SpringAiLlmGateway`** — единственное место, где вызывается `ChatClient`. По модели выбирает `ToolCallMode` через `ToolCallModeResolver`:
-  - **`NativeToolCallMode`** (основной режим: qwen3.5, а также qwen2.5-coder, llama3.1+) — передаёт `toolCallbacks` в `OllamaChatOptions` с `internalToolExecutionEnabled(false)`; вызовы берёт из `AssistantMessage.getToolCalls()`; результаты возвращает модели как `ToolResponseMessage`.
+  - **`NativeToolCallMode`** (основной режим: qwen3.5, а также qwen2.5-coder, llama3.1+) — передаёт определения инструментов через `ChatClient.tools(...)` (только определения, без исполнения) и отключает автоматический `ToolCallingAdvisor` Spring AI 2.0 (в 2.0.2 нет `internalToolExecutionEnabled`, исполнение перенесено в этот advisor); вызовы берёт из `AssistantMessage.getToolCalls()`; результаты возвращает модели как `ToolResponseMessage`.
   - **`TextJsonToolCallMode`** (запасной режим для моделей без tools, например codellama) — добавляет описание инструментов из `ToolCallback.getToolDefinition()` в system prompt; разбирает блок ```` ```tool ```` из текста ответа через `ToolBlockParser`; результаты возвращает модели как `UserMessage`.
-- **`SpringAiToolExecutor`** — общий реестр всех `ToolCallback`: builtin `@Tool` + MCP `ToolCallbackProvider`. По имени вызывает `callback.call(argsJson)`, оборачивает ответ в `ToolResult`, обрезает длинный вывод, замеряет длительность. Используется в обоих режимах, так что инструменты не дублируются.
+- **`SpringAiToolExecutor`** — общий реестр всех `ToolCallback`: builtin `@Tool` + MCP `ToolCallbackProvider`. По имени вызывает `callback.call(argsJson, toolContext)` (в `ToolContext` — рабочая директория для относительных путей), оборачивает ответ в `ToolResult`, обрезает длинный вывод, замеряет длительность. Используется в обоих режимах, так что инструменты не дублируются.
 - **`TokenWindowChatMemory`** (реализует Spring AI `ChatMemory`):
   - `add()` дописывает сообщения в репозиторий;
   - `get()` возвращает system prompt → summary последней компакции → все сообщения после неё. Окно не обрезается на каждом ходе, чтобы префикс оставался стабильным для кеша Ollama;
@@ -199,7 +199,7 @@ harness-bootstrap   dev.localllm.harness.bootstrap
 
 ### Почему не `MessageChatMemoryAdvisor`
 
-Advisor удобен для простого чата. Но harness управляет циклом вызова инструментов сам (`internalToolExecutionEnabled=false` или текстовый протокол), а документация Spring AI для такого режима рекомендует вести память явно: advisor не видит промежуточных сообщений с результатами инструментов.
+Advisor удобен для простого чата. Но harness управляет циклом вызова инструментов сам (отключённый `ToolCallingAdvisor` или текстовый протокол), а документация Spring AI для такого режима рекомендует вести память явно: advisor не видит промежуточных сообщений с результатами инструментов.
 
 Поэтому в обоих режимах память ведёт приложение через порт `ConversationMemory`. Реализация в адаптере — это Spring AI `ChatMemory`, так что её можно заменить на JDBC-репозиторий из Spring AI без изменений в ядре.
 
@@ -223,7 +223,7 @@ public interface ConversationMemory {
 
 public interface ToolExecutor {
     List<ToolSpec> available();
-    ToolResult execute(ToolCall call);
+    ToolResult execute(ToolCall call, Path workingDirectory);
 }
 
 public interface SessionCatalog {
@@ -302,7 +302,7 @@ harness:
 | `Session` | `id: UUID (v7)` (= Spring AI `conversationId`), `cwd: Path`, `model: String`, `title: String` (первые 60 символов первого запроса), `createdAt: Instant`, `summary: Optional<String>` |
 | `Message` | `id: UUID (v7)`, `role: Role (SYSTEM, USER, ASSISTANT, TOOL_RESULT)`, `content: String`, `toolCalls: List<ToolCall>`, `tokens: int`, `createdAt: Instant` |
 | `ToolCall` | `id: String` (UUIDv7 или id из нативного ответа), `name: String`, `argsJson: String` |
-| `ToolResult` | `callId: String`, `toolName: String`, `output: String`, `error: boolean`, `truncated: boolean`, `durationMs: long` |
+| `ToolResult` | `callId: String`, `toolName: String`, `output: String`, `error: boolean`, `truncated: boolean`, `duration: Duration` |
 | `ToolSpec` | `name`, `description`, `inputSchema: String` (JSON Schema из `ToolDefinition`), `source: BUILTIN \| MCP` |
 
 ### Relationships
@@ -317,8 +317,8 @@ harness:
 ```jsonl
 {"type":"meta","sessionId":"0192...","cwd":"/Users/me/proj","model":"qwen3.5:27b","createdAt":"2026-10-27T10:00:00Z"}
 {"type":"message","id":"0192...","role":"USER","content":"Объясни App.java","tokens":12,"createdAt":"..."}
-{"type":"message","id":"0192...","role":"ASSISTANT","content":"...","toolCalls":[{"id":"...","name":"read_file","argsJson":"{\"path\":\"App.java\"}"}],"tokens":40,"createdAt":"..."}
-{"type":"message","id":"0192...","role":"TOOL_RESULT","callId":"...","toolName":"read_file","content":"...","error":false,"createdAt":"..."}
+{"type":"message","role":"ASSISTANT","content":"...","toolCalls":[{"id":"...","name":"read_file","argsJson":"{\"path\":\"App.java\"}"}],"createdAt":"..."}
+{"type":"message","role":"TOOL_RESULT","callId":"...","toolName":"read_file","content":"...","createdAt":"..."}
 {"type":"compaction","summary":"...","replacesUpTo":"0192...","createdAt":"..."}
 ```
 
@@ -370,7 +370,7 @@ harness:
   context:
     num-ctx: 65536            # запрашиваемое окно; фактическое читается из /api/ps
     compact-threshold: 0.8
-    keep-last-messages: 4     # сообщений остаются дословно после компакции
+    keep-tail-share: 0.25     # доля окна под последние сообщения, остающиеся дословно после компакции
     chars-per-token: 3.5      # оценка без калибровки: prompt_eval_count не учитывает кеш
 ```
 
@@ -528,7 +528,7 @@ harness:
 
 1. ✅ **M1 — каркас и чат:** три Gradle-модуля, Spring Boot 4.1.2 + Spring AI 2.0.2, Picocli + JLine REPL, `OllamaChatAdapter` (стриминг без tools), `SendMessageService`, режим размышлений (требование 9, без `persist`), Ctrl+C, режим `-p`, slash-команды `/help /exit /clear /model /think`, история в памяти процесса.
 2. ✅ **M2 — сессии и контекст:** `JsonlChatMemoryRepository`, `TokenWindowChatMemory`, `--resume`/`/resume`/`/sessions`, `/compact`, `/context`, `@`-упоминания файлов.
-3. **M3 — агентный цикл, чтение:** `@Tool` `FileTools` (read/list/glob/grep), `SpringAiToolExecutor`, `NativeToolCallMode`, `AgentLoopService`, `/mode agent`.
+3. ✅ **M3 — агентный цикл, чтение:** `@Tool` `FileTools` (read/list/glob/grep), `SpringAiToolExecutor`, `NativeToolCallMode`, `AgentLoopService`, `/mode agent`.
 4. **M4 — запись, shell, запасной режим:** `write_file`, `edit_file` с diff, `run_command`, `http_fetch`, `TextJsonToolCallMode` + `ToolCallModeResolver`.
 5. **M5 — MCP:** `spring-ai-starter-mcp-client`, stdio + Streamable HTTP, префиксы имён, `/tools`.
 6. **M6 — native image.**
@@ -545,12 +545,12 @@ harness:
 - ✅ **Модель** — решено: **`qwen3.5:27b`** с нативным tool calling, режим `native` по умолчанию. Codellama и текстовый протокол остаются запасным вариантом для моделей без tools.
 - ✅ **Железо** — решено: Apple M3 Max, 48 ГБ. Стартовое значение `num_ctx` — 65536, настройки Ollama описаны в разделе Deployment.
 - ✅ **`num_ctx` на MLX-раннере** — решено в M2. Раннер применяет `num_ctx` только при загрузке модели и не перезагружает её, если позже приходит другое значение (`32768` в M1 — модель была загружена раньше с другим окном; после перезагрузки `/api/ps` показывает `context_length: 65536`). Harness берёт бюджет компакции из `/api/ps` (`OllamaContextBudgetAdapter`), `HARNESS_NUM_CTX` — только запасное значение. Чтобы сменить окно, модель нужно выгрузить: `ollama stop qwen3.5:27b`.
-- **Компакция по бюджету токенов.** Сейчас дословно остаются последние `keep-last-messages` сообщений; если в них большой `@`-файл, компакция почти ничего не освобождает (замер M2: ~11 339 → ~11 324 токенов). План — хранить хвост по доле окна и заменять старые вложения ссылкой (M3.0 в плане реализации).
-- **Задержка стрима на один чанк.** `OllamaApi.streamingChat` группирует чанки через `windowUntil` и отдаёт каждый только с приходом следующего; при обрыве стрима последний чанк теряется. На отзывчивость при живом стриме не влияет (проверено `OllamaLiveIT`). Учесть при разборе `tool_calls` в M3.
+- ✅ **Компакция по бюджету токенов** — решено на M3: дословно остаются последние сообщения в пределах `keep-tail-share` окна (хвост не начинается с результата инструмента), блоки `<file>` в сжимаемой части уходят в сводку как `@путь`.
+- **Задержка стрима на один чанк.** `OllamaApi.streamingChat` группирует чанки через `windowUntil` и отдаёт каждый только с приходом следующего; при обрыве стрима последний чанк теряется. На отзывчивость при живом стриме не влияет (проверено `OllamaLiveIT`). Для `tool_calls` не мешает: Spring AI держит окно открытым до `done` и отдаёт вызов одним чанком (проверено WireMock и `AgentLiveIT`).
 - **Холодный старт CLI** — 1.6 с (`harness --version`, JVM без CDS); требование ≤ 2 с выполнено. Ход с прогретой моделью без размышлений — около 0.3–0.5 с поверх старта.
 - ✅ **Режим размышлений** — решено (требование 9): включён по умолчанию, рассуждения выводятся приглушённым цветом, в историю не попадают, переключение — `/think on|off`. На M1 проверить, как Spring AI 2.0.2 передаёт параметр `think` в `OllamaChatOptions` и где отдаёт текст рассуждений в стриме (отдельное поле или метаданные `AssistantMessage`). Если Spring AI не прокидывает его в стрим, в адаптере `llm` понадобится обход через `OllamaApi`.
-- **Стоимость рассуждений.** Рассуждения генерируются с той же скоростью (~15–20 токенов/с) и могут на сотни токенов задерживать ответ и каждый шаг агентного цикла. Ollama не позволяет ограничить их длину для qwen3.5, есть только вкл/выкл. На M3 замерить, насколько thinking замедляет агентные шаги, и решить, не выключать ли его по умолчанию в режиме `agent`.
+- **Стоимость рассуждений.** Рассуждения генерируются с той же скоростью (~15–20 токенов/с) и могут на сотни токенов задерживать ответ и каждый шаг агентного цикла. Ollama не позволяет ограничить их длину для qwen3.5, есть только вкл/выкл. Замер M3 (`AgentLiveIT`, «прочитай файл и ответь», прогретая модель): с thinking 8.5 с, без — 7.0 с. Решено: thinking в `agent` остаётся включённым по умолчанию, выключается `/think off` или `--no-think`.
 - **Оценка токенов.** Формула «символы / коэффициент» приблизительна. `JTokkitTokenCountEstimator` из Spring AI считает токены токенизатором OpenAI, а не Qwen, поэтому тоже даёт неточность. Калибровать по `usage.promptTokens`.
-- **Стриминг в нативном режиме.** Нужно проверить, как Spring AI агрегирует `tool_calls` в стриме Ollama при `internalToolExecutionEnabled=false`. Запасной вариант — блокирующий `call()` для шагов с инструментами.
+- ✅ **Стриминг в нативном режиме** — решено на M3: стрим работает, блокирующий `call()` не нужен. В Spring AI 2.0.2 инструменты исполняет `ToolCallingAdvisor`, который `ChatClient` регистрирует сам; harness отключает его параметром `AdvisorParams.toolCallingAdvisorAutoRegister(false)`.
 - **Отсутствие разрешений** — сознательное решение. Если позже понадобится защита, `ToolExecutor` можно обернуть декоратором `PermissionGate` без изменения ядра.
 - **Отложено:** RAG по коду (Spring AI `VectorStore` + `nomic-embed-text`), несколько вызовов инструментов за один ответ в текстовом режиме, Windows, TUI.
