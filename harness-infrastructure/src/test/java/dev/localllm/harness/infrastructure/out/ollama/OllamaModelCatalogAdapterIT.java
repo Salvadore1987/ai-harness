@@ -95,7 +95,8 @@ class OllamaModelCatalogAdapterIT {
 
     // Assert
     assertThat(models).extracting(ModelInfo::name).containsExactly("qwen3.5:27b", "codellama:7b");
-    assertThat(models.getLast().capabilities()).isEmpty();
+    // codellama has no native tools but is configured for the text-json tool call mode
+    assertThat(models.getLast().capabilities()).containsExactly(ModelCapability.TOOLS);
   }
 
   @Test

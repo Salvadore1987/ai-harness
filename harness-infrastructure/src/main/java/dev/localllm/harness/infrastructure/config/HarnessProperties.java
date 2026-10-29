@@ -1,6 +1,8 @@
 package dev.localllm.harness.infrastructure.config;
 
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.Map;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
@@ -21,6 +23,8 @@ import org.springframework.validation.annotation.Validated;
  * @param context context window and compaction rules
  * @param agent limits of the agent loop
  * @param tools settings of the built-in tools
+ * @param toolCallModes tool call mode by model name prefix; the longest matching prefix wins
+ * @param defaultToolCallMode tool call mode of models no prefix matches
  */
 @ConfigurationProperties("harness")
 @Validated
@@ -31,7 +35,9 @@ public record HarnessProperties(
     @NotNull @Valid Thinking thinking,
     @NotNull @Valid Context context,
     @NotNull @Valid Agent agent,
-    @NotNull @Valid Tools tools) {
+    @NotNull @Valid Tools tools,
+    @NotNull Map<String, ToolCallModeType> toolCallModes,
+    @NotNull ToolCallModeType defaultToolCallMode) {
 
   /**
    * Directory of the JSONL session files.
@@ -81,8 +87,25 @@ public record HarnessProperties(
    * Settings of the built-in tools.
    *
    * @param maxOutputChars tool output sent back to the model is cut to this many characters
+   * @param shell shell that runs {@code run_command} with {@code -c}
+   * @param commandTimeout default timeout of {@code run_command}
+   * @param httpTimeout connect and read timeout of {@code http_fetch}
    */
-  public record Tools(@Min(256) int maxOutputChars) {
+  public record Tools(
+      @Min(256) int maxOutputChars,
+      @NotBlank String shell,
+      @NotNull Duration commandTimeout,
+      @NotNull Duration httpTimeout) {
+  }
+
+  /**
+   * How tools are offered to a model and how its calls are read.
+   */
+  public enum ToolCallModeType {
+    /** Native tool calling: {@code tools} in the request, {@code tool_calls} in the answer. */
+    NATIVE,
+    /** Tools described in the system prompt, calls written as a {@code ```tool} block. */
+    TEXT_JSON
   }
 
   /**

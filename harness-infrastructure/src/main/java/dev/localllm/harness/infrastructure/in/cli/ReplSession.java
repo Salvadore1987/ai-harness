@@ -114,7 +114,7 @@ public final class ReplSession {
   }
 
   /**
-   * Whether the current model supports native tool calling.
+   * Whether the current model can call tools.
    *
    * @return capability flag
    */

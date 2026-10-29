@@ -49,7 +49,8 @@ class FileToolsTest {
 
     // Assert
     assertThat(tools).extracting(ToolSpec::name)
-        .containsExactlyInAnyOrder("read_file", "list_dir", "glob", "grep");
+        .containsExactlyInAnyOrder(
+            "read_file", "list_dir", "glob", "grep", "write_file", "edit_file");
     assertThat(tools).extracting(ToolSpec::source).containsOnly(ToolSource.BUILTIN);
     ToolSpec readFile = tools.stream().filter(tool -> tool.name().equals("read_file"))
         .findFirst().orElseThrow();
@@ -214,6 +215,104 @@ class FileToolsTest {
     // Assert
     assertThat(result.error()).isTrue();
     assertThat(result.output()).startsWith("Error: Unclosed group");
+  }
+
+  @Test
+  void writeFile_NewFileInMissingDirectory_CreatesIt() throws IOException {
+    // Act
+    ToolResult result = call("write_file",
+        "{\"path\":\"out/new/Hello.txt\",\"content\":\"one\\ntwo\\n\"}");
+
+    // Assert
+    assertThat(result.error()).isFalse();
+    assertThat(result.output()).isEqualTo("Created out/new/Hello.txt (2 lines)");
+    assertThat(Files.readString(cwd.resolve("out/new/Hello.txt"))).isEqualTo("one\ntwo\n");
+  }
+
+  @Test
+  void writeFile_ExistingFile_OverwritesIt() throws IOException {
+    // Act
+    ToolResult result = call("write_file", "{\"path\":\"Calc.java\",\"content\":\"x\"}");
+
+    // Assert
+    assertThat(result.output()).isEqualTo("Overwrote Calc.java (1 lines)");
+    assertThat(Files.readString(cwd.resolve("Calc.java"))).isEqualTo("x");
+  }
+
+  @Test
+  void writeFile_Directory_ReturnsError() {
+    // Act
+    ToolResult result = call("write_file", "{\"path\":\"src\",\"content\":\"x\"}");
+
+    // Assert
+    assertThat(result.error()).isTrue();
+    assertThat(result.output()).isEqualTo("Error: src is a directory");
+  }
+
+  @Test
+  void editFile_UniqueText_ReplacesItAndReturnsDiff() throws IOException {
+    // Act
+    ToolResult result = call("edit_file", """
+        {"path":"Calc.java","oldText":"return a + b;","newText":"return a - b;"}""");
+
+    // Assert
+    assertThat(result.error()).isFalse();
+    assertThat(result.output()).isEqualTo("""
+        Edited Calc.java
+        @@ -1,5 +1,5 @@
+         class Calc {
+           int add(int a, int b) {
+        -    return a + b;
+        +    return a - b;
+           }
+         }
+        """);
+    assertThat(Files.readString(cwd.resolve("Calc.java"))).contains("return a - b;");
+  }
+
+  @Test
+  void editFile_TextOccursTwice_ReturnsErrorAndKeepsFile() throws IOException {
+    // Act
+    ToolResult result = call("edit_file", """
+        {"path":"Calc.java","oldText":"int","newText":"long"}""");
+
+    // Assert
+    assertThat(result.error()).isTrue();
+    assertThat(result.output()).isEqualTo(
+        "Error: oldText occurs 3 times in Calc.java; add surrounding lines to make it unique");
+    assertThat(Files.readString(cwd.resolve("Calc.java"))).doesNotContain("long");
+  }
+
+  @Test
+  void editFile_TextMissing_ReturnsError() {
+    // Act
+    ToolResult result = call("edit_file", """
+        {"path":"Calc.java","oldText":"multiply","newText":"x"}""");
+
+    // Assert
+    assertThat(result.error()).isTrue();
+    assertThat(result.output()).startsWith("Error: oldText not found in Calc.java");
+  }
+
+  @Test
+  void editFile_EmptyOldText_ReturnsError() {
+    // Act
+    ToolResult result = call("edit_file", """
+        {"path":"Calc.java","oldText":"","newText":"x"}""");
+
+    // Assert
+    assertThat(result.error()).isTrue();
+    assertThat(result.output()).startsWith("Error: oldText is empty");
+  }
+
+  @Test
+  void editFile_MissingFile_ReturnsError() {
+    // Act
+    ToolResult result = call("edit_file", """
+        {"path":"Nope.java","oldText":"a","newText":"b"}""");
+
+    // Assert
+    assertThat(result.output()).isEqualTo("Error: File not found: Nope.java");
   }
 
   @Test

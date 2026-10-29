@@ -3,6 +3,8 @@ package dev.localllm.harness.application.model;
 import java.time.Duration;
 import java.util.List;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Outcome of one streamed model turn.
  *
@@ -11,13 +13,16 @@ import java.util.List;
  * @param usage token counters, {@link TokenUsage#EMPTY} if the server sent none
  * @param elapsed wall-clock duration of the turn
  * @param toolCalls tool calls requested by the model, empty for a final answer
+ * @param toolCallError why a tool call written as text could not be read, {@code null} if
+ *     there was none or it was read
  */
 public record ChatCompletion(
     String content,
     TurnStatus status,
     TokenUsage usage,
     Duration elapsed,
-    List<ToolCall> toolCalls) {
+    List<ToolCall> toolCalls,
+    @Nullable String toolCallError) {
 
   private static final String CANCELLED_MARKER = "\n[cancelled]";
   private static final String INTERRUPTED_MARKER = "\n[interrupted]";
@@ -30,9 +35,24 @@ public record ChatCompletion(
    * @param usage token counters
    * @param elapsed wall-clock duration
    * @param toolCalls requested tool calls
+   * @param toolCallError why a tool call could not be read
    */
   public ChatCompletion {
     toolCalls = List.copyOf(toolCalls);
+  }
+
+  /**
+   * Creates the outcome of a turn whose tool calls, if any, were read.
+   *
+   * @param content answer text
+   * @param status how the turn ended
+   * @param usage token counters
+   * @param elapsed wall-clock duration
+   * @param toolCalls requested tool calls
+   */
+  public ChatCompletion(String content, TurnStatus status, TokenUsage usage, Duration elapsed,
+      List<ToolCall> toolCalls) {
+    this(content, status, usage, elapsed, toolCalls, null);
   }
 
   /**
@@ -44,7 +64,7 @@ public record ChatCompletion(
    * @param elapsed wall-clock duration
    */
   public ChatCompletion(String content, TurnStatus status, TokenUsage usage, Duration elapsed) {
-    this(content, status, usage, elapsed, List.of());
+    this(content, status, usage, elapsed, List.of(), null);
   }
 
   /**

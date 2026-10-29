@@ -27,7 +27,8 @@ public class LlmErrorHandler implements CliExceptionHandler {
     String message = String.valueOf(error.getMessage());
     if (message.contains("does not support tools")) {
       return "Модель не поддерживает инструменты: " + message
-          + ". Переключитесь на /mode chat или выберите модель с пометкой tools: /model";
+          + ". Переключитесь на /mode chat, выберите модель с пометкой tools (/model) или "
+          + "включите для неё текстовый протокол: harness.tool-call-modes в config.yml";
     }
     return "Ошибка Ollama: " + message;
   }

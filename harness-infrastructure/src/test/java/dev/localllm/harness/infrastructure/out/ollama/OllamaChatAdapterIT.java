@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -28,6 +29,7 @@ import dev.localllm.harness.application.model.ToolResult;
 import dev.localllm.harness.application.model.ToolSource;
 import dev.localllm.harness.application.model.ToolSpec;
 import dev.localllm.harness.application.model.TurnStatus;
+import dev.localllm.harness.infrastructure.config.HarnessProperties.ToolCallModeType;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
@@ -37,6 +39,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
+import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -181,6 +184,98 @@ class OllamaChatAdapterIT {
   }
 
   @Test
+  void stream_InTextJsonMode_SendsToolsInPromptAndHistoryAsText() {
+    // Arrange
+    stubChat(STREAM);
+    OllamaChatAdapter adapter = textJsonAdapter();
+    ToolCall call = new ToolCall("call_1", "read_file", "{\"path\":\"Calc.java\"}");
+    List<ChatMessage> history = List.of(
+        ChatMessage.assistant("", List.of(call)),
+        ChatMessage.toolResult(new ToolResult("call_1", "read_file", "1\tclass Calc {}", false,
+            false, Duration.ZERO)));
+
+    // Act
+    adapter.stream(toolRequest(history), chunk -> { });
+
+    // Assert
+    ollama.verify(postRequestedFor(urlEqualTo("/api/chat"))
+        .withRequestBody(containing("\"tools\":[]"))
+        .withRequestBody(matchingJsonPath("$.messages[0].role", equalTo("system")))
+        .withRequestBody(matchingJsonPath("$.messages[0].content", containing("- read_file:")))
+        .withRequestBody(matchingJsonPath("$.messages[2].role", equalTo("assistant")))
+        .withRequestBody(matchingJsonPath("$.messages[2].content", equalTo(
+            "```tool\n{\"name\":\"read_file\",\"args\":{\"path\":\"Calc.java\"}}\n```")))
+        .withRequestBody(matchingJsonPath("$.messages[3].role", equalTo("user")))
+        .withRequestBody(matchingJsonPath("$.messages[3].content",
+            equalTo("TOOL_RESULT read_file:\n1\tclass Calc {}"))));
+  }
+
+  @Test
+  void stream_InTextJsonMode_HidesBlockReturnsCallAndStopsAfterIt() {
+    // Arrange
+    stubChat(content("Reading.\\n``") + content("`tool\\n{\\\"name\\\": \\\"read_file\\\", ")
+        + content("\\\"args\\\": {\\\"path\\\": \\\"Calc.java\\\"}}\\n```")
+        + content("\\nTOOL_RESULT read_file: invented")
+        + String.format(CHUNK, "\"content\":\"\"",
+            "\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":12,\"eval_count\":7"));
+    OllamaChatAdapter adapter = textJsonAdapter();
+    List<ChatChunk> chunks = new ArrayList<>();
+
+    // Act
+    ChatCompletion completion = adapter.stream(toolRequest(List.of()), chunks::add);
+
+    // Assert
+    assertThat(chunks).containsExactly(new ChatChunk.Content("Reading.\n"));
+    assertThat(completion.status()).isEqualTo(TurnStatus.COMPLETED);
+    assertThat(completion.content()).isEqualTo("Reading.");
+    assertThat(completion.toolCalls()).singleElement().satisfies(call -> {
+      assertThat(call.name()).isEqualTo("read_file");
+      assertThat(call.argumentsJson()).isEqualTo("{\"path\":\"Calc.java\"}");
+    });
+    assertThat(completion.toolCallError()).isNull();
+    // the stream is dropped right after the block, before the final chunk with the counters
+    assertThat(completion.usage()).isEqualTo(TokenUsage.EMPTY);
+  }
+
+  @Test
+  void stream_InTextJsonMode_WithInvalidBlock_ReturnsErrorAndRawContent() {
+    // Arrange
+    stubChat(content("```tool\\n{\\\"name\\\": \\\"rm\\\"}\\n```")
+        + String.format(CHUNK, "\"content\":\"\"", "\"done\":true"));
+    OllamaChatAdapter adapter = textJsonAdapter();
+
+    // Act
+    ChatCompletion completion = adapter.stream(toolRequest(List.of()), chunk -> { });
+
+    // Assert
+    assertThat(completion.toolCalls()).isEmpty();
+    assertThat(completion.content()).isEqualTo("```tool\n{\"name\": \"rm\"}\n```");
+    assertThat(completion.toolCallError())
+        .isEqualTo("unknown tool rm; available tools: read_file");
+  }
+
+  @Test
+  void stream_WhenServerEndsWithoutAnyToken_AsksOnceMore() {
+    // Arrange
+    ollama.stubFor(post("/api/chat").inScenario("empty").whenScenarioStateIs(STARTED)
+        .willReturn(aResponse().withHeader("Content-Type", "application/x-ndjson")
+            .withBody(String.format(CHUNK, "\"content\":\"\"",
+                "\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":904")))
+        .willSetStateTo("retried"));
+    ollama.stubFor(post("/api/chat").inScenario("empty").whenScenarioStateIs("retried")
+        .willReturn(aResponse().withHeader("Content-Type", "application/x-ndjson")
+            .withBody(STREAM)));
+    OllamaChatAdapter adapter = OllamaTestSupport.chatAdapter(ollama.baseUrl());
+
+    // Act
+    ChatCompletion completion = adapter.stream(request(false), chunk -> { });
+
+    // Assert
+    assertThat(completion.content()).isEqualTo("Hello");
+    ollama.verify(2, postRequestedFor(urlEqualTo("/api/chat")));
+  }
+
+  @Test
   void stream_WithoutTools_SendsEmptyToolList() {
     // Arrange
     stubChat(STREAM);
@@ -291,6 +386,11 @@ class OllamaChatAdapterIT {
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
     }
+  }
+
+  private static OllamaChatAdapter textJsonAdapter() {
+    return OllamaTestSupport.chatAdapter(ollama.baseUrl(),
+        Map.of("qwen3.5", ToolCallModeType.TEXT_JSON));
   }
 
   private static void stubChat(String ndjson) {

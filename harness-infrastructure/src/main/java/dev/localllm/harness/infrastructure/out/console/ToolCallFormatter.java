@@ -19,6 +19,8 @@ import dev.localllm.harness.application.model.ToolResult;
 final class ToolCallFormatter {
 
   static final int PREVIEW_LINES = 3;
+  static final int DIFF_PREVIEW_LINES = 40;
+  static final String EDIT_TOOL = "edit_file";
   private static final int MAX_ARGUMENTS_LENGTH = 100;
   private static final int MAX_LINE_LENGTH = 160;
   private static final String ELLIPSIS = "…";
@@ -53,15 +55,25 @@ final class ToolCallFormatter {
     if (verbose) {
       return all;
     }
-    List<String> shown = new ArrayList<>(PREVIEW_LINES + 1);
-    for (int i = 0; i < Math.min(PREVIEW_LINES, all.size()); i++) {
+    int limit = isDiff(result) ? DIFF_PREVIEW_LINES : PREVIEW_LINES;
+    List<String> shown = new ArrayList<>(limit + 1);
+    for (int i = 0; i < Math.min(limit, all.size()); i++) {
       shown.add(shorten(all.get(i), MAX_LINE_LENGTH));
     }
-    if (all.size() > PREVIEW_LINES) {
-      shown.add(ELLIPSIS + " ещё " + (all.size() - PREVIEW_LINES)
-          + " строк (--verbose — полностью)");
+    if (all.size() > limit) {
+      shown.add(ELLIPSIS + " ещё " + (all.size() - limit) + " строк (--verbose — полностью)");
     }
     return shown;
+  }
+
+  /**
+   * Whether the output is the diff of a successful {@code edit_file}, shown in full and colored.
+   *
+   * @param result outcome of the call
+   * @return {@code true} for a diff
+   */
+  static boolean isDiff(ToolResult result) {
+    return !result.error() && EDIT_TOOL.equals(result.toolName());
   }
 
   private String arguments(String argumentsJson) {
