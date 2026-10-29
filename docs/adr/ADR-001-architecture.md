@@ -71,7 +71,7 @@ provided-зависимости, 3.2.4). ArchUnit разрешает `org.spring
 ### 7. GraalVM native image
 
 Не входит в это решение. По правилу 6.16 — отдельный ADR с замером старта JVM + CDS против native
-(этап M6).
+(этап M6): принято в [ADR-002](ADR-002-native-image.md) — только native image.
 
 ## Последствия
 

@@ -79,7 +79,7 @@ Ollama, MCP и описание инструментов (`ToolCallback`) бер
 
 ### Non-Functional Requirements
 
-- **Старт:** JVM ≤ 2 с (с ленивой инициализацией бинов, `spring.main.lazy-initialization=true`; MCP-клиенты инициализируются асинхронно), в native image ≤ 150 мс.
+- **Старт:** JVM ≤ 2 с (с ленивой инициализацией бинов, `spring.main.lazy-initialization=true`; MCP-клиенты инициализируются асинхронно), в native image ≤ 150 мс. Замер M6 ([ADR-002](adr/ADR-002-native-image.md)): fat jar 1.83 с, native 0.05 с (`--version`); harness распространяется как native image.
 - **Отзывчивость:** первый токен выводится сразу при получении от Ollama, без буферизации на стороне harness.
 - **Чистота вывода:** логи пишутся только в `~/.harness/logs/harness.log`, в консоль идёт только диалог. Баннер Spring выключен.
 - **Целевое железо:** Apple M3 Max, 48 ГБ unified memory. Ollama использует Metal; macOS по умолчанию отдаёт GPU около 75 % памяти (~36 ГБ).
@@ -133,7 +133,7 @@ Ollama, MCP и описание инструментов (`ToolCallback`) бер
 | Качество | Checkstyle, PMD, SpotBugs, JaCoCo (порог 60 % общий, 80 % `harness-application`) |
 | Маппинг | MapStruct (`org.mapstruct:mapstruct` + `mapstruct-processor`) |
 | ID | UUIDv7 (`com.fasterxml.uuid:java-uuid-generator`, `Generators.timeBasedEpochGenerator()`) |
-| Сборка | Gradle Kotlin DSL, три модуля, fat jar (`bootJar`) только в `harness-bootstrap` + обёртка `bin/harness`; GraalVM native image — отдельным ADR в M6 |
+| Сборка | Gradle Kotlin DSL, три модуля; GraalVM native image (`nativeCompile`, [ADR-002](adr/ADR-002-native-image.md)) в `harness-bootstrap` + обёртка `bin/harness`; fat jar (`bootJar`) — для разработки |
 | Тесты | JUnit 5, AssertJ, Mockito, WireMock, ArchUnit |
 
 ### Component Overview
@@ -516,7 +516,7 @@ harness:
   - чат на `qwen3.5:27b` возвращает непустой ответ;
   - агентный режим на fixture-проекте («прочитай `Calc.java` и скажи, что делает метод `add`») прогоняется на `qwen3.5:27b` (native): проверяется вызов `read_file`;
   - тот же сценарий в режиме text-json (на `qwen3.5:27b` с принудительным `text-json` или на `codellama`, если она установлена) — для проверки запасного протокола.
-- Smoke-тест fat jar: `java -jar harness.jar -p "say hi"` при поднятом WireMock-стабе Ollama.
+- Smoke-тест native image (`NativeImageSmokeIT`, тег `native`): бинарник против WireMock-стаба Ollama и stdio MCP-сервера — `--version`, slash-команды, `-p` в чате и агенте (`native` и `text-json`), `/compact` + `--resume`, недоступная Ollama.
 
 ## Deployment
 
@@ -527,11 +527,12 @@ harness:
   - `OLLAMA_NUM_PARALLEL=1` — один слот: параллельные слоты умножают KV-кеш, а harness всё равно работает в одном потоке;
   - `OLLAMA_MAX_LOADED_MODELS=1` — чтобы вторая модель (например, для тестов text-json) не вытеснила основную в CPU;
   - при нехватке памяти под GPU можно поднять лимит: `sudo sysctl iogpu.wired_limit_mb=40960` (сбрасывается после перезагрузки). Оставшихся ~8 ГБ хватит macOS, IDE и JVM harness.
-- **Сборка:**
-  - `./gradlew bootJar` → `build/libs/harness.jar`;
-  - скрипт `bin/harness` (`exec java -XX:TieredStopAtLevel=1 -jar .../harness.jar "$@"`), установка через симлинк в `~/.local/bin`.
-- **Native (итерация 3):** `./gradlew nativeCompile`. Spring AI и Boot 4 поддерживают AOT. Дополнительно потребуются reachability metadata для JLine (FFM/JNI terminal provider) и проверка `@Tool`-методов (reflection hints) и MCP stdio. Проверка через `nativeTest`.
-- **CI (опционально):** GitHub Actions — `./gradlew check` на Temurin 25 (без live-тестов) и матрица native-сборки для macOS/Linux.
+- **Сборка (M6, [ADR-002](adr/ADR-002-native-image.md)):**
+  - GraalVM 25; `./gradlew :harness-bootstrap:nativeCompile` → `harness-bootstrap/build/native/nativeCompile/harness` (около 70 с);
+  - скрипт `bin/harness` запускает бинарник, установка через симлинк в `~/.local/bin`;
+  - reachability metadata: `NativeHintsConfig` (records настроек, `@Tool`-классы, DTO Jackson) и `picocli-codegen`; проверка — `NativeImageSmokeIT` (тег `native`) вместо `nativeTest`;
+  - `./gradlew bootJar` → `harness.jar` для запуска на JVM при разработке.
+- **CI (опционально):** GitHub Actions — `./gradlew check` на Temurin 25 (без live-тестов) и native-сборка на GraalVM 25 с тегом `native` для macOS/Linux.
 - **Конфигурация:**
   - `application.yml` в jar;
   - `~/.harness/config.yml`, `~/.harness/mcp.json`;
@@ -545,7 +546,7 @@ harness:
 3. ✅ **M3 — агентный цикл, чтение:** `@Tool` `FileTools` (read/list/glob/grep), `SpringAiToolExecutor`, `NativeToolCallMode`, `AgentLoopService`, `/mode agent`.
 4. ✅ **M4 — запись, shell, запасной режим:** `write_file`, `edit_file` с diff, `run_command`, `http_fetch`, `TextJsonToolCallMode` + `ToolCallModeResolver`.
 5. ✅ **M5 — MCP:** `spring-ai-starter-mcp-client`, stdio из `mcp.json` + Streamable HTTP из `config.yml` с заголовками, фоновое подключение `McpConnector`, префиксы `mcp__<server>__<tool>`, `/tools` с именем сервера.
-6. **M6 — native image.**
+6. ✅ **M6 — native image:** замер JVM / CDS / AOT-кэш / native, ADR-002 — только native; `NativeHintsConfig`, `picocli-codegen`, JLine через FFM, `NativeImageSmokeIT`.
 
 ## Open Questions
 
@@ -561,7 +562,7 @@ harness:
 - ✅ **`num_ctx` на MLX-раннере** — решено в M2. Раннер применяет `num_ctx` только при загрузке модели и не перезагружает её, если позже приходит другое значение (`32768` в M1 — модель была загружена раньше с другим окном; после перезагрузки `/api/ps` показывает `context_length: 65536`). Harness берёт бюджет компакции из `/api/ps` (`OllamaContextBudgetAdapter`), `HARNESS_NUM_CTX` — только запасное значение. Чтобы сменить окно, модель нужно выгрузить: `ollama stop qwen3.5:27b`.
 - ✅ **Компакция по бюджету токенов** — решено на M3: дословно остаются последние сообщения в пределах `keep-tail-share` окна (хвост не начинается с результата инструмента), блоки `<file>` в сжимаемой части уходят в сводку как `@путь`.
 - **Задержка стрима на один чанк.** `OllamaApi.streamingChat` группирует чанки через `windowUntil` и отдаёт каждый только с приходом следующего; при обрыве стрима последний чанк теряется. На отзывчивость при живом стриме не влияет (проверено `OllamaLiveIT`). Для `tool_calls` не мешает: Spring AI держит окно открытым до `done` и отдаёт вызов одним чанком (проверено WireMock и `AgentLiveIT`).
-- **Холодный старт CLI** — 1.6 с (`harness --version`, JVM без CDS); требование ≤ 2 с выполнено. Ход с прогретой моделью без размышлений — около 0.3–0.5 с поверх старта.
+- ✅ **Холодный старт CLI** — решено на M6 ([ADR-002](adr/ADR-002-native-image.md)): native image, 0.05 с (`--version`) и 0.15 с до приглашения REPL в терминале. На M1 JVM стартовала за 1.6 с, к M5 — 2.27 с; около 0.35 с из них JLine тратил на провайдер `exec` (процессы `stty`), теперь терминал открывается через FFM. Ход с прогретой моделью без размышлений — около 0.3–0.5 с поверх старта.
 - ✅ **Режим размышлений** — решено (требование 9): включён по умолчанию, рассуждения выводятся приглушённым цветом, в историю не попадают, переключение — `/think on|off`. На M1 проверить, как Spring AI 2.0.2 передаёт параметр `think` в `OllamaChatOptions` и где отдаёт текст рассуждений в стриме (отдельное поле или метаданные `AssistantMessage`). Если Spring AI не прокидывает его в стрим, в адаптере `llm` понадобится обход через `OllamaApi`.
 - **Стоимость рассуждений.** Рассуждения генерируются с той же скоростью (~15–20 токенов/с) и могут на сотни токенов задерживать ответ и каждый шаг агентного цикла. Ollama не позволяет ограничить их длину для qwen3.5, есть только вкл/выкл. Замер M3 (`AgentLiveIT`, «прочитай файл и ответь», прогретая модель): с thinking 8.5 с, без — 7.0 с. Решено: thinking в `agent` остаётся включённым по умолчанию, выключается `/think off` или `--no-think`.
 - **Оценка токенов.** Формула «символы / коэффициент» приблизительна. `JTokkitTokenCountEstimator` из Spring AI считает токены токенизатором OpenAI, а не Qwen, поэтому тоже даёт неточность. Калибровать по `usage.promptTokens`.
