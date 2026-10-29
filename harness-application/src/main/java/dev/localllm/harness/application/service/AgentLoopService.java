@@ -107,53 +107,54 @@ public class AgentLoopService implements RunAgentTurnUseCase {
     cancellation.reset();
     List<ToolSpec> tools = toolExecutorPort.available();
     Set<String> toolNames = tools.stream().map(ToolSpec::name).collect(Collectors.toSet());
-    ChatMessage userMessage = new ChatMessage(Role.USER, command.text());
-    int completionTokens = 0;
-    Duration elapsed = Duration.ZERO;
-    int parseFailures = 0;
+    TurnProgress progress = new TurnProgress(new ChatMessage(Role.USER, command.text()));
     for (int step = 0; step < policy.maxIterations(); step++) {
-      List<ChatMessage> messages = requestMessages(command);
-      if (step == 0) {
-        messages.add(userMessage);
-      }
-      StringBuilder thinking = new StringBuilder();
-      ChatCompletion completion = chatModelPort.stream(
-          new ChatRequest(command.model(), messages, command.thinkingEnabled(), tools),
-          chunk -> present(chunk, thinking));
-      completionTokens += completion.usage().completionTokens();
-      elapsed = elapsed.plus(completion.elapsed());
-
-      if (step == 0) {
-        sessionRegistrar.registerIfNew(command.sessionId(), command.workingDirectory(),
-            command.model(), command.text());
-        conversationPort.append(command.sessionId(), userMessage);
-      }
-      List<ToolCall> calls = completion.status() == TurnStatus.COMPLETED
-          ? requestedCalls(completion) : List.of();
-      conversationPort.append(command.sessionId(),
-          ChatMessage.assistant(completion.historyContent(), calls));
-      if (!thinking.isEmpty()) {
-        conversationPort.recordThinking(command.sessionId(), thinking.toString());
-      }
+      Step stepResult = runStep(command, tools, progress, step == 0);
+      ChatCompletion completion = stepResult.completion();
+      List<ToolCall> calls = stepResult.calls();
       if (calls.isEmpty()) {
-        return finish(command, completion, completion.status(), completionTokens, elapsed);
+        return finish(command, completion, completion.status(), progress);
       }
 
-      parseFailures = calls.stream().noneMatch(call -> toolNames.contains(call.name()))
-          ? parseFailures + 1 : 0;
+      progress.countToolStep(calls.stream().noneMatch(call -> toolNames.contains(call.name())));
       executeTools(command, calls, toolNames, completion.toolCallError());
       if (cancellation.isRequested()) {
-        return finish(command, completion, TurnStatus.CANCELLED, completionTokens, elapsed);
+        return finish(command, completion, TurnStatus.CANCELLED, progress);
       }
-      if (parseFailures >= policy.maxParseFailures()) {
+      if (progress.parseFailures >= policy.maxParseFailures()) {
         throw new AgentLimitExceededException(
             AgentLimitExceededException.Limit.PARSE_FAILURES, policy.maxParseFailures());
       }
-      compactor.compactIfNeeded(command.sessionId(), command.model())
-          .ifPresent(outcome -> turnOutputPort.onCompaction(mapper.toCompactionResult(outcome)));
+      compactIfNeeded(command);
     }
     throw new AgentLimitExceededException(
         AgentLimitExceededException.Limit.ITERATIONS, policy.maxIterations());
+  }
+
+  private Step runStep(RunAgentTurnCommand command, List<ToolSpec> tools,
+      TurnProgress progress, boolean firstStep) {
+    List<ChatMessage> messages = requestMessages(command);
+    if (firstStep) {
+      messages.add(progress.userMessage);
+    }
+    StringBuilder thinking = new StringBuilder();
+    ChatCompletion completion = chatModelPort.stream(
+        new ChatRequest(command.model(), messages, command.thinkingEnabled(), tools),
+        chunk -> present(chunk, thinking));
+    progress.add(completion);
+    if (firstStep) {
+      sessionRegistrar.registerIfNew(command.sessionId(), command.workingDirectory(),
+          command.model(), command.text());
+      conversationPort.append(command.sessionId(), progress.userMessage);
+    }
+    List<ToolCall> calls = completion.status() == TurnStatus.COMPLETED
+        ? requestedCalls(completion) : List.of();
+    conversationPort.append(command.sessionId(),
+        ChatMessage.assistant(completion.historyContent(), calls));
+    if (!thinking.isEmpty()) {
+      conversationPort.recordThinking(command.sessionId(), thinking.toString());
+    }
+    return new Step(completion, calls);
   }
 
   private List<ChatMessage> requestMessages(RunAgentTurnCommand command) {
@@ -186,29 +187,38 @@ public class AgentLoopService implements RunAgentTurnUseCase {
         result = ToolResult.rejected(call, CANCELLED_OUTPUT);
       } else {
         turnOutputPort.onToolCall(call);
-        if (toolNames.contains(call.name())) {
-          result = toolExecutorPort.execute(call, command.workingDirectory());
-        } else if (ToolCall.PARSE_ERROR.equals(call.name()) && toolCallError != null) {
-          result = ToolResult.rejected(call,
-              TOOL_ERROR_PREFIX + toolCallError + TOOL_ERROR_SUFFIX);
-        } else {
-          result = ToolResult.rejected(call, unknownToolMessage(call, toolNames));
-        }
+        result = executeTool(command, call, toolNames, toolCallError);
         turnOutputPort.onToolResult(result);
       }
       conversationPort.append(command.sessionId(), ChatMessage.toolResult(result));
     }
   }
 
+  private ToolResult executeTool(RunAgentTurnCommand command, ToolCall call,
+      Set<String> toolNames, @Nullable String toolCallError) {
+    if (toolNames.contains(call.name())) {
+      return toolExecutorPort.execute(call, command.workingDirectory());
+    }
+    if (ToolCall.PARSE_ERROR.equals(call.name()) && toolCallError != null) {
+      return ToolResult.rejected(call, TOOL_ERROR_PREFIX + toolCallError + TOOL_ERROR_SUFFIX);
+    }
+    return ToolResult.rejected(call, unknownToolMessage(call, toolNames));
+  }
+
   private TurnResult finish(RunAgentTurnCommand command, ChatCompletion last, TurnStatus status,
-      int completionTokens, Duration elapsed) {
+      TurnProgress progress) {
     ChatCompletion total = new ChatCompletion(last.content(), status,
-        new TokenUsage(last.usage().promptTokens(), completionTokens), elapsed);
+        new TokenUsage(last.usage().promptTokens(), progress.completionTokens),
+        progress.elapsed);
     TurnResult result = mapper.toTurnResult(total);
     turnOutputPort.onComplete(result);
+    compactIfNeeded(command);
+    return result;
+  }
+
+  private void compactIfNeeded(RunAgentTurnCommand command) {
     compactor.compactIfNeeded(command.sessionId(), command.model())
         .ifPresent(outcome -> turnOutputPort.onCompaction(mapper.toCompactionResult(outcome)));
-    return result;
   }
 
   private void present(ChatChunk chunk, StringBuilder thinking) {
@@ -224,5 +234,31 @@ public class AgentLoopService implements RunAgentTurnUseCase {
   private static String unknownToolMessage(ToolCall call, Set<String> toolNames) {
     return "Unknown tool " + call.name() + ". Available tools: "
         + toolNames.stream().sorted().collect(Collectors.joining(", "));
+  }
+
+  /** One model request with the tool calls it asked for. */
+  private record Step(ChatCompletion completion, List<ToolCall> calls) {
+  }
+
+  /** Totals of one turn across its model requests. */
+  private static final class TurnProgress {
+
+    private final ChatMessage userMessage;
+    private int completionTokens;
+    private Duration elapsed = Duration.ZERO;
+    private int parseFailures;
+
+    private TurnProgress(ChatMessage userMessage) {
+      this.userMessage = userMessage;
+    }
+
+    private void add(ChatCompletion completion) {
+      completionTokens += completion.usage().completionTokens();
+      elapsed = elapsed.plus(completion.elapsed());
+    }
+
+    private void countToolStep(boolean onlyUnknownTools) {
+      parseFailures = onlyUnknownTools ? parseFailures + 1 : 0;
+    }
   }
 }

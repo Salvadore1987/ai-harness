@@ -16,6 +16,7 @@ import org.jline.reader.impl.DefaultParser;
 import org.jline.terminal.Terminal;
 import org.jline.utils.AttributedString;
 import org.jline.utils.AttributedStyle;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 import dev.localllm.harness.infrastructure.config.HarnessProperties;
@@ -66,42 +67,47 @@ public class ReplRunner {
   public void run(ReplSession session) {
     LineReader reader = createReader(session);
     printBanner(session);
-    boolean exitArmed = false;
-    while (true) {
-      String line;
-      try {
-        line = reader.readLine(session.getMode() == ReplMode.AGENT ? AGENT_PROMPT : PROMPT);
-      } catch (UserInterruptException e) {
-        if (!e.getPartialLine().isEmpty()) {
-          exitArmed = false;
-          continue;
-        }
-        if (exitArmed) {
-          return;
-        }
-        exitArmed = true;
-        hint("Нажмите Ctrl+C ещё раз для выхода");
-        continue;
-      } catch (EndOfFileException e) {
+    for (String input = readInput(reader, session); input != null;
+        input = readInput(reader, session)) {
+      if (handle(input, session) == SlashOutcome.EXIT) {
         return;
       }
-      exitArmed = false;
-      String input = normalize(line);
-      if (input.isEmpty()) {
-        continue;
-      }
-      if (input.startsWith("/")) {
-        if (dispatcher.dispatch(input, session) == SlashOutcome.EXIT) {
-          return;
+    }
+  }
+
+  private @Nullable String readInput(LineReader reader, ReplSession session) {
+    boolean exitArmed = false;
+    while (true) {
+      try {
+        return normalize(
+            reader.readLine(session.getMode() == ReplMode.AGENT ? AGENT_PROMPT : PROMPT));
+      } catch (UserInterruptException e) {
+        boolean emptyPrompt = e.getPartialLine().isEmpty();
+        if (emptyPrompt && exitArmed) {
+          return null;
         }
-        continue;
+        exitArmed = emptyPrompt;
+        if (exitArmed) {
+          hint("Нажмите Ctrl+C ещё раз для выхода");
+        }
+      } catch (EndOfFileException e) {
+        return null;
       }
-      turnExecutor.execute(session, input);
     }
   }
 
   static String normalize(String line) {
     return line.replace("\\\n", "\n").strip();
+  }
+
+  private SlashOutcome handle(String input, ReplSession session) {
+    if (input.startsWith("/")) {
+      return dispatcher.dispatch(input, session);
+    }
+    if (!input.isEmpty()) {
+      turnExecutor.execute(session, input);
+    }
+    return SlashOutcome.CONTINUE;
   }
 
   private LineReader createReader(ReplSession session) {

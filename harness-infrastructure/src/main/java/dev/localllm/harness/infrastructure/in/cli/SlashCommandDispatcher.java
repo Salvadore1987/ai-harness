@@ -2,6 +2,8 @@ package dev.localllm.harness.infrastructure.in.cli;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.BiConsumer;
 
 import org.jline.terminal.Terminal;
 import org.springframework.stereotype.Component;
@@ -33,9 +35,7 @@ public class SlashCommandDispatcher {
       @путь                 приложить файл из рабочей директории (Tab — автодополнение)
       Многострочный ввод: \\ в конце строки или Alt+Enter. Ctrl+C прерывает генерацию.""";
 
-  private final SessionSlashCommands sessionCommands;
-  private final ModelSlashCommands modelCommands;
-  private final AgentSlashCommands agentCommands;
+  private final Map<String, BiConsumer<ReplSession, String>> handlers;
   private final CliErrorReporter errorReporter;
   private final Terminal terminal;
 
@@ -54,9 +54,17 @@ public class SlashCommandDispatcher {
       AgentSlashCommands agentCommands,
       CliErrorReporter errorReporter,
       Terminal terminal) {
-    this.sessionCommands = sessionCommands;
-    this.modelCommands = modelCommands;
-    this.agentCommands = agentCommands;
+    this.handlers = Map.ofEntries(
+        Map.entry("/help", (session, argument) -> println(HELP)),
+        Map.entry("/clear", (session, argument) -> sessionCommands.clear(session)),
+        Map.entry("/sessions", (session, argument) -> sessionCommands.sessions(session)),
+        Map.entry("/resume", sessionCommands::resume),
+        Map.entry("/compact", (session, argument) -> sessionCommands.compact(session)),
+        Map.entry("/context", (session, argument) -> sessionCommands.context(session)),
+        Map.entry("/model", modelCommands::model),
+        Map.entry("/think", modelCommands::think),
+        Map.entry("/mode", agentCommands::mode),
+        Map.entry("/tools", (session, argument) -> agentCommands.tools(argument)));
     this.errorReporter = errorReporter;
     this.terminal = terminal;
   }
@@ -75,20 +83,13 @@ public class SlashCommandDispatcher {
     if ("/exit".equals(name) || "/quit".equals(name)) {
       return SlashOutcome.EXIT;
     }
+    BiConsumer<ReplSession, String> handler = handlers.get(name);
+    if (handler == null) {
+      println("Неизвестная команда " + parts[0] + ". Список команд: /help");
+      return SlashOutcome.CONTINUE;
+    }
     try {
-      switch (name) {
-        case "/help" -> println(HELP);
-        case "/clear" -> sessionCommands.clear(session);
-        case "/sessions" -> sessionCommands.sessions(session);
-        case "/resume" -> sessionCommands.resume(session, argument);
-        case "/compact" -> sessionCommands.compact(session);
-        case "/context" -> sessionCommands.context(session);
-        case "/model" -> modelCommands.model(session, argument);
-        case "/think" -> modelCommands.think(session, argument);
-        case "/mode" -> agentCommands.mode(session, argument);
-        case "/tools" -> agentCommands.tools(argument);
-        default -> println("Неизвестная команда " + parts[0] + ". Список команд: /help");
-      }
+      handler.accept(session, argument);
     } catch (RuntimeException e) {
       errorReporter.report(e);
     }

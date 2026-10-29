@@ -142,24 +142,29 @@ public class ConsoleTurnOutputAdapter implements TurnOutputPort {
       lines.add(String.format(Locale.ROOT, "%.1f с%s", result.duration().toMillis() / 1000.0,
           result.truncated() ? " · вывод обрезан" : ""));
     }
-    AttributedStyle style = result.error() ? ERROR_STYLE : TOOL_OUTPUT_STYLE;
-    boolean diff = ToolCallFormatter.isDiff(result);
-    boolean interactive = isInteractive();
-    for (int i = 0; i < lines.size(); i++) {
-      String prefix = i == 0 ? RESULT_PREFIX : RESULT_INDENT;
-      if (interactive) {
-        String line = lines.get(i);
-        println(prefix + styled(line, diff && i > 0 ? diffStyle(line) : style));
-      } else {
-        diagnostics.println(prefix + lines.get(i));
-      }
-    }
-    if (interactive) {
-      println("");
-      writer().flush();
+    if (isInteractive()) {
+      printStyledResult(result, lines);
     } else {
+      for (int i = 0; i < lines.size(); i++) {
+        diagnostics.println(resultPrefix(i) + lines.get(i));
+      }
       diagnostics.flush();
     }
+  }
+
+  private void printStyledResult(ToolResult result, List<String> lines) {
+    AttributedStyle style = result.error() ? ERROR_STYLE : TOOL_OUTPUT_STYLE;
+    boolean diff = ToolCallFormatter.isDiff(result);
+    for (int i = 0; i < lines.size(); i++) {
+      String line = lines.get(i);
+      println(resultPrefix(i) + styled(line, diff && i > 0 ? diffStyle(line) : style));
+    }
+    println("");
+    writer().flush();
+  }
+
+  private static String resultPrefix(int index) {
+    return index == 0 ? RESULT_PREFIX : RESULT_INDENT;
   }
 
   @Override

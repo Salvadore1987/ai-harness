@@ -27,37 +27,49 @@ final class TextDiff {
   static String unified(String before, String after) {
     List<String> oldLines = before.lines().toList();
     List<String> newLines = after.lines().toList();
-    int prefix = 0;
+    int prefix = commonPrefix(oldLines, newLines);
+    if (prefix == oldLines.size() && prefix == newLines.size()) {
+      return "";
+    }
+    int suffix = commonSuffix(oldLines, newLines, prefix);
+    int oldChangeEnd = oldLines.size() - suffix;
+    int newChangeEnd = newLines.size() - suffix;
+    int start = Math.max(0, prefix - CONTEXT_LINES);
+    int oldEnd = Math.min(oldLines.size(), oldChangeEnd + CONTEXT_LINES);
+    int newEnd = Math.min(newLines.size(), newChangeEnd + CONTEXT_LINES);
+    StringBuilder diff = new StringBuilder(String.format(Locale.ROOT, "%s-%d,%d +%d,%d @@%n",
+        HUNK_PREFIX, start + 1, oldEnd - start, start + 1, newEnd - start));
+    appendLines(diff, ' ', oldLines, start, prefix);
+    appendLines(diff, '-', oldLines, prefix, oldChangeEnd);
+    appendLines(diff, '+', newLines, prefix, newChangeEnd);
+    appendLines(diff, ' ', oldLines, oldChangeEnd, oldEnd);
+    return diff.toString();
+  }
+
+  private static int commonPrefix(List<String> oldLines, List<String> newLines) {
     int shorter = Math.min(oldLines.size(), newLines.size());
+    int prefix = 0;
     while (prefix < shorter && oldLines.get(prefix).equals(newLines.get(prefix))) {
       prefix++;
     }
+    return prefix;
+  }
+
+  private static int commonSuffix(List<String> oldLines, List<String> newLines, int prefix) {
+    int limit = Math.min(oldLines.size(), newLines.size()) - prefix;
     int suffix = 0;
-    while (suffix < shorter - prefix
+    while (suffix < limit
         && oldLines.get(oldLines.size() - 1 - suffix)
             .equals(newLines.get(newLines.size() - 1 - suffix))) {
       suffix++;
     }
-    if (prefix == oldLines.size() && prefix == newLines.size()) {
-      return "";
+    return suffix;
+  }
+
+  private static void appendLines(StringBuilder diff, char marker, List<String> lines,
+      int from, int to) {
+    for (int i = from; i < to; i++) {
+      diff.append(marker).append(lines.get(i)).append('\n');
     }
-    int start = Math.max(0, prefix - CONTEXT_LINES);
-    int oldEnd = Math.min(oldLines.size(), oldLines.size() - suffix + CONTEXT_LINES);
-    int newEnd = Math.min(newLines.size(), newLines.size() - suffix + CONTEXT_LINES);
-    StringBuilder diff = new StringBuilder(String.format(Locale.ROOT, "%s-%d,%d +%d,%d @@%n",
-        HUNK_PREFIX, start + 1, oldEnd - start, start + 1, newEnd - start));
-    for (int i = start; i < prefix; i++) {
-      diff.append(' ').append(oldLines.get(i)).append('\n');
-    }
-    for (int i = prefix; i < oldLines.size() - suffix; i++) {
-      diff.append('-').append(oldLines.get(i)).append('\n');
-    }
-    for (int i = prefix; i < newLines.size() - suffix; i++) {
-      diff.append('+').append(newLines.get(i)).append('\n');
-    }
-    for (int i = oldLines.size() - suffix; i < oldEnd; i++) {
-      diff.append(' ').append(oldLines.get(i)).append('\n');
-    }
-    return diff.toString();
   }
 }
