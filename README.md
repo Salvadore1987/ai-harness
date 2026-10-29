@@ -59,6 +59,43 @@ harness:
   default-tool-call-mode: native
 ```
 
+### MCP
+
+Инструменты внешних MCP-серверов доступны агенту под именами `mcp__<сервер>__<инструмент>`, в
+`/tools` во второй колонке — имя сервера. stdio-серверы описываются в `~/.harness/mcp.json` в
+формате Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/me/proj"] }
+  }
+}
+```
+
+Streamable HTTP-серверы и их заголовки — в `~/.harness/config.yml`; значения заголовков лучше
+брать из переменных окружения, пустое значение не отправляется:
+
+```yaml
+spring:
+  ai:
+    mcp:
+      client:
+        streamable-http:
+          connections:
+            remote: { url: https://mcp.example.com, endpoint: /mcp }
+harness:
+  mcp:
+    headers:
+      remote:
+        Authorization: "Bearer ${REMOTE_MCP_TOKEN:}"
+```
+
+Серверы подключаются в фоне после запуска, REPL их не ждёт; первый агентный ход или `/tools`
+дожидается подключения. Сервер, который не запустился или не ответил, пропускается с
+предупреждением `⚠ MCP-сервер «…» недоступен: …`, остальные инструменты работают. Список
+инструментов фиксируется на всю сессию.
+
 ## Конфигурация
 
 Все значения задаются переменными окружения (или в `~/.harness/config.yml`):
@@ -83,7 +120,8 @@ harness:
 | `HARNESS_TOOLS_COMMAND_TIMEOUT` | `120s` | Таймаут `run_command` по умолчанию |
 | `HARNESS_TOOLS_HTTP_TIMEOUT` | `30s` | Таймаут соединения и чтения `http_fetch` |
 | `HARNESS_DEFAULT_TOOL_CALL_MODE` | `native` | Режим вызова инструментов для моделей без префикса в `tool-call-modes` |
-| `HARNESS_HOME` | `~/.harness` | Сессии, история ввода, логи, `config.yml` |
+| `HARNESS_MCP_REQUEST_TIMEOUT` | `30s` | Таймаут запроса к MCP-серверу |
+| `HARNESS_HOME` | `~/.harness` | Сессии, история ввода, логи, `config.yml`, `mcp.json` |
 
 Логи — только в `~/.harness/logs/harness.log`, консоль занята диалогом.
 
@@ -99,5 +137,5 @@ harness:
 | Модуль | Содержимое |
 |---|---|
 | `harness-application` | Ядро без фреймворков: модели, порты, use case'ы, MapStruct-маппер |
-| `harness-infrastructure` | Адаптеры: CLI (Picocli + JLine), Ollama (Spring AI), консоль, память, инструменты |
+| `harness-infrastructure` | Адаптеры: CLI (Picocli + JLine), Ollama (Spring AI), консоль, память, инструменты, MCP-клиент |
 | `harness-bootstrap` | `HarnessApplication`, `BeanConfig`, `application.yml`, Log4j2, `bootJar` |
