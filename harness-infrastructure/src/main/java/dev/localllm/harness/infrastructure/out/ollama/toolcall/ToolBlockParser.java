@@ -133,6 +133,11 @@ public class ToolBlockParser {
     } catch (JacksonException e) {
       return;
     }
+    checkRequired(tool, schema, arguments);
+    checkKnown(tool, schema, arguments);
+  }
+
+  private static void checkRequired(ToolSpec tool, JsonNode schema, ObjectNode arguments) {
     for (JsonNode required : schema.path("required")) {
       JsonNode value = arguments.get(required.asString());
       if (value == null || value.isNull()) {
@@ -140,6 +145,9 @@ public class ToolBlockParser {
             + "\" of " + tool.name());
       }
     }
+  }
+
+  private static void checkKnown(ToolSpec tool, JsonNode schema, ObjectNode arguments) {
     JsonNode properties = schema.path("properties");
     if (!properties.isObject()) {
       return;

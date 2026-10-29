@@ -68,6 +68,21 @@ public class FileTools {
       @Nullable Integer limit,
       ToolContext context) {
     Path file = ToolContexts.resolve(context, path);
+    requireReadableFile(file, path);
+    List<String> lines = readLines(file, path);
+    if (lines.isEmpty()) {
+      return "(empty file)";
+    }
+    int first = Math.max(1, offset == null ? 1 : offset);
+    int count = Math.max(1, limit == null ? DEFAULT_READ_LIMIT : limit);
+    if (first > lines.size()) {
+      throw new IllegalArgumentException(
+          "Offset " + first + " is past the end: the file has " + lines.size() + " lines");
+    }
+    return numbered(lines, first, Math.min(lines.size(), first + count - 1));
+  }
+
+  private static void requireReadableFile(Path file, String path) {
     if (Files.isDirectory(file)) {
       throw new IllegalArgumentException(path + " is a directory, use list_dir");
     }
@@ -77,17 +92,9 @@ public class FileTools {
     if (size(file) > MAX_READ_BYTES) {
       throw new IllegalArgumentException("File is larger than 10 MB: " + path);
     }
-    List<String> lines = readLines(file, path);
-    int first = Math.max(1, offset == null ? 1 : offset);
-    int count = Math.max(1, limit == null ? DEFAULT_READ_LIMIT : limit);
-    if (lines.isEmpty()) {
-      return "(empty file)";
-    }
-    if (first > lines.size()) {
-      throw new IllegalArgumentException(
-          "Offset " + first + " is past the end: the file has " + lines.size() + " lines");
-    }
-    int last = Math.min(lines.size(), first + count - 1);
+  }
+
+  private static String numbered(List<String> lines, int first, int last) {
     StringBuilder text = new StringBuilder();
     for (int number = first; number <= last; number++) {
       text.append(String.format(Locale.ROOT, "%6d\t", number))
@@ -194,23 +201,29 @@ public class FileTools {
     int[] total = {0};
     walk(start, file -> {
       Path shown = file.startsWith(root) ? root.relativize(file) : file;
-      if (!filter.test(shown) || size(file) > MAX_GREP_FILE_BYTES) {
-        return;
-      }
-      List<String> lines = readLinesOrEmpty(file);
-      for (int i = 0; i < lines.size(); i++) {
-        if (regex.matcher(lines.get(i)).find()) {
-          total[0]++;
-          if (matches.size() < MAX_RESULTS) {
-            matches.add(shown + ":" + (i + 1) + ": " + shorten(lines.get(i).strip()));
-          }
-        }
+      if (filter.test(shown) && size(file) <= MAX_GREP_FILE_BYTES) {
+        total[0] += grepFile(file, shown, regex, matches);
       }
     });
     if (matches.isEmpty()) {
       return "No matches for " + pattern;
     }
     return limited(matches, total[0]);
+  }
+
+  private static int grepFile(Path file, Path shown, Pattern regex, List<String> matches) {
+    List<String> lines = readLinesOrEmpty(file);
+    int found = 0;
+    for (int i = 0; i < lines.size(); i++) {
+      if (!regex.matcher(lines.get(i)).find()) {
+        continue;
+      }
+      found++;
+      if (matches.size() < MAX_RESULTS) {
+        matches.add(shown + ":" + (i + 1) + ": " + shorten(lines.get(i).strip()));
+      }
+    }
+    return found;
   }
 
   /**
@@ -239,10 +252,10 @@ public class FileTools {
       if (parent != null) {
         Files.createDirectories(parent);
       }
-      Files.writeString(file, content, StandardCharsets.UTF_8);
     } catch (IOException e) {
       throw new UncheckedIOException("Cannot write " + path + ": " + e.getMessage(), e);
     }
+    writeText(file, content, path);
     return String.format(Locale.ROOT, "%s %s (%d lines)",
         existed ? "Overwrote" : "Created", path, content.lines().count());
   }
@@ -275,33 +288,24 @@ public class FileTools {
     if (!Files.isRegularFile(file)) {
       throw new IllegalArgumentException("File not found: " + path);
     }
-    String before;
-    try {
-      before = Files.readString(file, StandardCharsets.UTF_8);
-    } catch (CharacterCodingException e) {
-      throw new IllegalArgumentException("Not a UTF-8 text file: " + path, e);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Cannot read " + path + ": " + e.getMessage(), e);
-    }
-    int first = before.indexOf(oldText);
+    String before = readText(file, path);
+    String after = replaceUnique(before, oldText, newText, path);
+    writeText(file, after, path);
+    return "Edited " + path + "\n" + TextDiff.unified(before, after);
+  }
+
+  private static String replaceUnique(String text, String oldText, String newText, String path) {
+    int first = text.indexOf(oldText);
     if (first < 0) {
       throw new IllegalArgumentException("oldText not found in " + path
           + "; read the file and copy the text exactly");
     }
-    if (before.indexOf(oldText, first + 1) >= 0) {
-      throw new IllegalArgumentException("oldText occurs " + occurrences(before, oldText)
+    if (text.indexOf(oldText, first + 1) >= 0) {
+      throw new IllegalArgumentException("oldText occurs " + occurrences(text, oldText)
           + " times in " + path + "; add surrounding lines to make it unique");
     }
-    String after = before.substring(0, first) + newText
-        + before.substring(first + oldText.length());
-    try {
-      Files.writeString(file, after, StandardCharsets.UTF_8);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Cannot write " + path + ": " + e.getMessage(), e);
-    }
-    return "Edited " + path + "\n" + TextDiff.unified(before, after);
+    return text.substring(0, first) + newText + text.substring(first + oldText.length());
   }
-
 
   private static Predicate<Path> globMatcher(String pattern) {
     PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
@@ -357,6 +361,24 @@ public class FileTools {
       throw new IllegalArgumentException("Not a UTF-8 text file: " + path, e);
     } catch (IOException e) {
       throw new UncheckedIOException("Cannot read " + path + ": " + e.getMessage(), e);
+    }
+  }
+
+  private static String readText(Path file, String path) {
+    try {
+      return Files.readString(file, StandardCharsets.UTF_8);
+    } catch (CharacterCodingException e) {
+      throw new IllegalArgumentException("Not a UTF-8 text file: " + path, e);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Cannot read " + path + ": " + e.getMessage(), e);
+    }
+  }
+
+  private static void writeText(Path file, String content, String path) {
+    try {
+      Files.writeString(file, content, StandardCharsets.UTF_8);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Cannot write " + path + ": " + e.getMessage(), e);
     }
   }
 
