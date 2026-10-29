@@ -1,0 +1,51 @@
+[versions]
+jdk = "25"
+spring-boot = "4.1.2"
+spring-ai = "2.0.2"
+picocli = "4.7.7"
+jline = "3.30.17"
+mapstruct = "1.6.3"
+java-uuid-generator = "5.2.0"
+jspecify = "1.0.1"
+errorprone-core = "2.51.0"
+errorprone-gradle = "5.1.1"
+nullaway = "0.14.3"
+spotbugs-gradle = "6.5.13"
+spotbugs-tool = "4.10.5"
+checkstyle = "14.3.0"
+pmd = "7.28.0"
+jacoco = "0.8.16"
+archunit = "1.5.1"
+wiremock = "3.13.2"
+
+[libraries]
+spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
+spring-ai-bom = { module = "org.springframework.ai:spring-ai-bom", version.ref = "spring-ai" }
+
+spring-context = { module = "org.springframework:spring-context" }
+spring-boot-starter = { module = "org.springframework.boot:spring-boot-starter" }
+spring-boot-starter-log4j2 = { module = "org.springframework.boot:spring-boot-starter-log4j2" }
+spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring-boot-configuration-processor = { module = "org.springframework.boot:spring-boot-configuration-processor" }
+spring-ai-starter-model-ollama = { module = "org.springframework.ai:spring-ai-starter-model-ollama" }
+
+picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
+jline = { module = "org.jline:jline", version.ref = "jline" }
+mapstruct = { module = "org.mapstruct:mapstruct", version.ref = "mapstruct" }
+mapstruct-processor = { module = "org.mapstruct:mapstruct-processor", version.ref = "mapstruct" }
+java-uuid-generator = { module = "com.fasterxml.uuid:java-uuid-generator", version.ref = "java-uuid-generator" }
+jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }
+errorprone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "errorprone-core" }
+nullaway = { module = "com.uber.nullaway:nullaway", version.ref = "nullaway" }
+
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+assertj-core = { module = "org.assertj:assertj-core" }
+archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
+wiremock-standalone = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+errorprone = { id = "net.ltgt.errorprone", version.ref = "errorprone-gradle" }
+spotbugs = { id = "com.github.spotbugs", version.ref = "spotbugs-gradle" }
