@@ -1,12 +1,21 @@
 package dev.localllm.harness.bootstrap;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.stream.Stream;
+
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.util.FileSystemUtils;
 import picocli.CommandLine;
 
 import dev.localllm.harness.infrastructure.in.cli.HarnessCommand;
@@ -35,11 +44,18 @@ class HarnessApplicationIT {
       .options(wireMockConfig().dynamicPort())
       .build();
 
+  private static final Path HOME = Path.of("build/test-harness-home");
+
   @Autowired
   private HarnessCommand command;
 
   @Autowired
   private PicocliExceptionHandler exceptionHandler;
+
+  @BeforeAll
+  static void cleanHome() throws IOException {
+    FileSystemUtils.deleteRecursively(HOME);
+  }
 
   @DynamicPropertySource
   static void ollamaUrl(DynamicPropertyRegistry registry) {
@@ -47,7 +63,8 @@ class HarnessApplicationIT {
   }
 
   @Test
-  void printMode_WithStubbedOllama_AnswersAndSendsConfiguredOptions() {
+  void printMode_WithStubbedOllama_AnswersSendsConfiguredOptionsAndStoresSession()
+      throws IOException {
     // Arrange
     ollama.stubFor(post("/api/show").willReturn(okJson(
         "{\"details\":{\"parameter_size\":\"27B\"},"
@@ -70,5 +87,16 @@ class HarnessApplicationIT {
         .withRequestBody(matchingJsonPath("$.think", equalTo("true")))
         .withRequestBody(matchingJsonPath("$.keep_alive", equalTo("30m")))
         .withRequestBody(matchingJsonPath("$.options.num_ctx", equalTo("65536"))));
+    List<Path> sessions;
+    try (Stream<Path> files = Files.list(HOME.resolve("sessions"))) {
+      sessions = files.toList();
+    }
+    assertThat(sessions).singleElement().satisfies(file ->
+        assertThat(Files.readAllLines(file, StandardCharsets.UTF_8))
+            .hasSize(3)
+            .satisfies(lines -> {
+              assertThat(lines.get(0)).contains("\"type\":\"meta\"", "\"title\":\"say hi\"");
+              assertThat(lines.get(2)).contains("\"role\":\"ASSISTANT\"", "\"content\":\"hi\"");
+            }));
   }
 }

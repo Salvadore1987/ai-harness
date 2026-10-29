@@ -4,14 +4,20 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import dev.localllm.harness.application.dto.command.ToggleThinkingCommand;
+import dev.localllm.harness.application.dto.result.CompactionResult;
+import dev.localllm.harness.application.dto.result.ContextUsageResult;
 import dev.localllm.harness.application.dto.result.ModelSummaryResult;
 import dev.localllm.harness.application.dto.result.SessionResult;
+import dev.localllm.harness.application.dto.result.SessionSummaryResult;
 import dev.localllm.harness.application.dto.result.ThinkingToggleResult;
 import dev.localllm.harness.application.dto.result.TurnResult;
 import dev.localllm.harness.application.model.ChatCompletion;
+import dev.localllm.harness.application.model.CompactionOutcome;
+import dev.localllm.harness.application.model.ContextUsage;
 import dev.localllm.harness.application.model.ModelCapability;
 import dev.localllm.harness.application.model.ModelInfo;
 import dev.localllm.harness.application.model.SessionId;
+import dev.localllm.harness.application.model.SessionInfo;
 
 /**
  * Converts core models into use case results.
@@ -59,4 +65,28 @@ public interface TurnApplicationMapper {
    * @return toggle result
    */
   ThinkingToggleResult toThinkingToggleResult(ToggleThinkingCommand command);
+
+  /**
+   * Converts stored session metadata into its summary.
+   *
+   * @param session session metadata
+   * @return session summary
+   */
+  SessionSummaryResult toSessionSummary(SessionInfo session);
+
+  /**
+   * Converts a compaction outcome into its result.
+   *
+   * @param outcome compaction outcome
+   * @return compaction result
+   */
+  CompactionResult toCompactionResult(CompactionOutcome outcome);
+
+  /**
+   * Converts a context measurement into its result.
+   *
+   * @param usage measured usage
+   * @return usage result
+   */
+  ContextUsageResult toContextUsageResult(ContextUsage usage);
 }

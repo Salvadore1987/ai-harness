@@ -5,6 +5,7 @@ import java.nio.file.Path;
 import org.jspecify.annotations.Nullable;
 
 import dev.localllm.harness.application.dto.result.ModelSummaryResult;
+import dev.localllm.harness.application.dto.result.SessionSummaryResult;
 import dev.localllm.harness.application.model.SessionId;
 
 /**
@@ -15,6 +16,7 @@ public final class ReplSession {
   private final Path workingDirectory;
   private final boolean verbose;
   private @Nullable SessionId sessionId;
+  private @Nullable String title;
   private String model;
   private boolean thinkingEnabled;
   private boolean thinkingSupported = true;
@@ -32,7 +34,7 @@ public final class ReplSession {
     this.model = model;
     this.thinkingEnabled = thinkingEnabled;
     this.verbose = verbose;
-    this.workingDirectory = workingDirectory;
+    this.workingDirectory = workingDirectory.toAbsolutePath().normalize();
   }
 
   /**
@@ -45,12 +47,32 @@ public final class ReplSession {
   }
 
   /**
-   * Replaces the current session.
+   * Title of a resumed session, {@code null} for a new one.
    *
-   * @param sessionId new session identifier
+   * @return session title
    */
-  public void setSessionId(SessionId sessionId) {
-    this.sessionId = sessionId;
+  public @Nullable String getTitle() {
+    return title;
+  }
+
+  /**
+   * Switches to a stored session.
+   *
+   * @param resumed the session to continue
+   */
+  public void resume(SessionSummaryResult resumed) {
+    this.sessionId = resumed.sessionId();
+    this.title = resumed.title();
+  }
+
+  /**
+   * Switches to a new, empty session.
+   *
+   * @param newSessionId identifier of the new session
+   */
+  public void startNew(SessionId newSessionId) {
+    this.sessionId = newSessionId;
+    this.title = null;
   }
 
   /**
@@ -105,6 +127,15 @@ public final class ReplSession {
    */
   public Path getWorkingDirectory() {
     return workingDirectory;
+  }
+
+  /**
+   * Selects a model by name before it is validated, for example the model of a resumed session.
+   *
+   * @param modelName model tag
+   */
+  public void applyModelName(String modelName) {
+    this.model = modelName;
   }
 
   /**

@@ -14,7 +14,7 @@ spring:
         pull-model-strategy: ${HARNESS_PULL_MODEL_STRATEGY:never}
       chat:
         model: ${harness.model}
-        num-ctx: ${HARNESS_NUM_CTX:65536}
+        num-ctx: ${harness.context.num-ctx}
         temperature: ${HARNESS_TEMPERATURE:0.2}
         keep-alive: ${HARNESS_KEEP_ALIVE:30m}
 
@@ -25,3 +25,9 @@ harness:
   thinking:
     enabled: ${HARNESS_THINKING_ENABLED:true}
     display: ${HARNESS_THINKING_DISPLAY:stream}
+    persist: ${HARNESS_THINKING_PERSIST:false}
+  context:
+    num-ctx: ${HARNESS_NUM_CTX:65536}
+    compact-threshold: ${HARNESS_COMPACT_THRESHOLD:0.8}
+    keep-last-messages: ${HARNESS_KEEP_LAST_MESSAGES:4}
+    chars-per-token: ${HARNESS_CHARS_PER_TOKEN:3.5}

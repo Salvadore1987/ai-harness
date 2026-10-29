@@ -21,10 +21,13 @@ import dev.localllm.harness.infrastructure.in.cli.mapper.ReplCliMapper;
 public class TurnExecutor {
 
   private static final AttributedStyle STATS_STYLE = AttributedStyle.DEFAULT.faint();
+  private static final AttributedStyle WARNING_STYLE =
+      AttributedStyle.DEFAULT.foreground(AttributedStyle.YELLOW);
 
   private final SendMessageUseCase sendMessageUseCase;
   private final CancelTurnUseCase cancelTurnUseCase;
   private final ReplCliMapper mapper;
+  private final FileMentionExpander fileMentionExpander;
   private final CliErrorReporter errorReporter;
   private final Terminal terminal;
 
@@ -34,6 +37,7 @@ public class TurnExecutor {
    * @param sendMessageUseCase runs the turn
    * @param cancelTurnUseCase cancels the running turn on Ctrl+C
    * @param mapper builds commands from the CLI state
+   * @param fileMentionExpander attaches files mentioned as {@code @path}
    * @param errorReporter prints failures
    * @param terminal terminal receiving the interrupt signal
    */
@@ -41,17 +45,19 @@ public class TurnExecutor {
       SendMessageUseCase sendMessageUseCase,
       CancelTurnUseCase cancelTurnUseCase,
       ReplCliMapper mapper,
+      FileMentionExpander fileMentionExpander,
       CliErrorReporter errorReporter,
       Terminal terminal) {
     this.sendMessageUseCase = sendMessageUseCase;
     this.cancelTurnUseCase = cancelTurnUseCase;
     this.mapper = mapper;
+    this.fileMentionExpander = fileMentionExpander;
     this.errorReporter = errorReporter;
     this.terminal = terminal;
   }
 
   /**
-   * Sends the message and waits for the answer.
+   * Attaches mentioned files, sends the message and waits for the answer.
    *
    * @param session CLI state
    * @param text user message
@@ -61,7 +67,11 @@ public class TurnExecutor {
     Terminal.SignalHandler previous = terminal.handle(Terminal.Signal.INT,
         signal -> cancelTurnUseCase.execute(mapper.toCancelTurnCommand(session)));
     try {
-      TurnResult result = sendMessageUseCase.execute(mapper.toSendMessageCommand(session, text));
+      FileMentionExpander.Expansion expansion =
+          fileMentionExpander.expand(text, session.getWorkingDirectory());
+      expansion.problems().forEach(problem -> printStyled("⚠ " + problem, WARNING_STYLE));
+      TurnResult result = sendMessageUseCase.execute(
+          mapper.toSendMessageCommand(session, expansion.text()));
       if (session.isVerbose()) {
         printStats(result);
       }
@@ -85,7 +95,11 @@ public class TurnExecutor {
           result.promptTokens(), result.completionTokens(),
           result.completionTokens() / Math.max(seconds, 0.001), seconds);
     }
-    terminal.writer().println(new AttributedString(stats, STATS_STYLE).toAnsi(terminal));
+    printStyled(stats, STATS_STYLE);
+  }
+
+  private void printStyled(String text, AttributedStyle style) {
+    terminal.writer().println(new AttributedString(text, style).toAnsi(terminal));
     terminal.writer().flush();
   }
 }

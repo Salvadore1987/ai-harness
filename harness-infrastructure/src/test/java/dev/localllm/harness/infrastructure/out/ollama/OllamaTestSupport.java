@@ -8,7 +8,7 @@ import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.api.OllamaApi;
 import org.springframework.ai.ollama.api.OllamaChatOptions;
 
-import dev.localllm.harness.infrastructure.config.HarnessProperties;
+import dev.localllm.harness.infrastructure.TestProperties;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.ChatMessageSpringAiMapper;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.ChatResponseSpringAiMapper;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.ModelInfoOllamaMapper;
@@ -50,8 +50,7 @@ final class OllamaTestSupport {
   }
 
   static OllamaErrorTranslator translator(String baseUrl) {
-    return new OllamaErrorTranslator(new HarnessProperties(
-        MODEL, baseUrl, Path.of("build/harness-home"),
-        new HarnessProperties.Thinking(true, HarnessProperties.ThinkingDisplay.STREAM)));
+    return new OllamaErrorTranslator(
+        TestProperties.create(Path.of("build/harness-home"), baseUrl, false));
   }
 }

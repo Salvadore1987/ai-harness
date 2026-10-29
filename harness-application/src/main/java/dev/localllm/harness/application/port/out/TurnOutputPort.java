@@ -1,5 +1,6 @@
 package dev.localllm.harness.application.port.out;
 
+import dev.localllm.harness.application.dto.result.CompactionResult;
 import dev.localllm.harness.application.dto.result.TurnResult;
 
 /**
@@ -27,4 +28,11 @@ public interface TurnOutputPort {
    * @param result summary of the finished turn
    */
   void onComplete(TurnResult result);
+
+  /**
+   * Tells the user that the history was compacted automatically after the turn.
+   *
+   * @param result outcome of the compaction
+   */
+  void onCompaction(CompactionResult result);
 }

@@ -7,6 +7,7 @@ import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
 
+import dev.localllm.harness.application.dto.result.CompactionResult;
 import dev.localllm.harness.application.dto.result.TurnResult;
 import dev.localllm.harness.application.model.TurnStatus;
 import dev.localllm.harness.infrastructure.TestTerminals;
@@ -95,6 +96,32 @@ class ConsoleTurnOutputAdapterTest {
     // Assert
     assertThat(terminal.plainText())
         .isEqualTo("✻ hmm\n\n⚠ ответ прерван: соединение с Ollama оборвалось\n");
+  }
+
+  @Test
+  void onCompaction_WithSummary_PrintsTokenReduction() {
+    // Arrange
+    TestTerminals.Captured terminal = TestTerminals.interactive();
+    ConsoleTurnOutputAdapter adapter = adapter(terminal, ThinkingDisplay.STREAM);
+
+    // Act
+    adapter.onCompaction(new CompactionResult(true, true, 52000, 8000));
+
+    // Assert
+    assertThat(terminal.plainText()).isEqualTo("↻ история сжата: ~52000 → ~8000 токенов\n");
+  }
+
+  @Test
+  void onCompaction_WhenNothingToCompact_Warns() {
+    // Arrange
+    TestTerminals.Captured terminal = TestTerminals.interactive();
+    ConsoleTurnOutputAdapter adapter = adapter(terminal, ThinkingDisplay.STREAM);
+
+    // Act
+    adapter.onCompaction(new CompactionResult(false, false, 60000, 60000));
+
+    // Assert
+    assertThat(terminal.plainText()).startsWith("⚠ контекст почти заполнен");
   }
 
   private ConsoleTurnOutputAdapter adapter(

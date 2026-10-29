@@ -11,6 +11,7 @@ import org.jline.utils.AttributedStyle;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import dev.localllm.harness.application.dto.result.CompactionResult;
 import dev.localllm.harness.application.dto.result.TurnResult;
 import dev.localllm.harness.application.port.out.TurnOutputPort;
 import dev.localllm.harness.infrastructure.config.HarnessProperties;
@@ -101,6 +102,24 @@ public class ConsoleTurnOutputAdapter implements TurnOutputPort {
       }
     }
     phase = Phase.IDLE;
+    writer().flush();
+  }
+
+  @Override
+  public synchronized void onCompaction(CompactionResult result) {
+    String message;
+    if (!result.compacted()) {
+      message = "⚠ контекст почти заполнен, но сжимать нечего: последние сообщения слишком длинные";
+    } else if (result.summarized()) {
+      message = String.format(Locale.ROOT, "↻ история сжата: ~%d → ~%d токенов",
+          result.tokensBefore(), result.tokensAfter());
+    } else {
+      message = String.format(Locale.ROOT,
+          "↻ старые сообщения отброшены без сводки: ~%d → ~%d токенов",
+          result.tokensBefore(), result.tokensAfter());
+    }
+    endLine();
+    println(styled(message, result.compacted() ? THINKING_STYLE : WARNING_STYLE));
     writer().flush();
   }
 

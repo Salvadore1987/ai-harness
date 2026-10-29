@@ -4,11 +4,13 @@ import java.nio.file.Path;
 
 import org.jline.keymap.KeyMap;
 import org.jline.reader.Binding;
+import org.jline.reader.Completer;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.Reference;
 import org.jline.reader.UserInterruptException;
+import org.jline.reader.impl.completer.AggregateCompleter;
 import org.jline.reader.impl.DefaultParser;
 import org.jline.terminal.Terminal;
 import org.jline.utils.AttributedString;
@@ -60,7 +62,7 @@ public class ReplRunner {
    * @param session CLI state
    */
   public void run(ReplSession session) {
-    LineReader reader = createReader();
+    LineReader reader = createReader(session);
     printBanner(session);
     boolean exitArmed = false;
     while (true) {
@@ -100,7 +102,7 @@ public class ReplRunner {
     return line.replace("\\\n", "\n").strip();
   }
 
-  private LineReader createReader() {
+  private LineReader createReader(ReplSession session) {
     DefaultParser parser = new DefaultParser();
     parser.setEofOnEscapedNewLine(true);
     parser.setEofOnUnclosedQuote(false);
@@ -109,7 +111,7 @@ public class ReplRunner {
         .terminal(terminal)
         .appName("harness")
         .parser(parser)
-        .completer(new SlashCommandCompleter())
+        .completer(completer(session))
         .variable(LineReader.HISTORY_FILE, historyFile)
         .variable(LineReader.SECONDARY_PROMPT_PATTERN, "  ")
         .option(LineReader.Option.DISABLE_EVENT_EXPANSION, true)
@@ -125,11 +127,20 @@ public class ReplRunner {
     return reader;
   }
 
+  private static Completer completer(ReplSession session) {
+    return new AggregateCompleter(
+        new SlashCommandCompleter(), new FileMentionCompleter(session.getWorkingDirectory()));
+  }
+
   private void printBanner(ReplSession session) {
+    String title = session.getTitle();
     hint("harness · модель " + session.getModel()
         + " · размышления " + (session.isThinkingEnabled() ? "on" : "off")
         + " · " + session.getWorkingDirectory()
         + " · /help — команды");
+    if (title != null) {
+      hint("продолжаю сессию «" + title + "»");
+    }
   }
 
   private void hint(String text) {
