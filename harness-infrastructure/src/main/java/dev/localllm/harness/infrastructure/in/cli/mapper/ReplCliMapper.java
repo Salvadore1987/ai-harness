@@ -4,15 +4,19 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import dev.localllm.harness.application.dto.command.CancelTurnCommand;
+import dev.localllm.harness.application.dto.command.CompactSessionCommand;
+import dev.localllm.harness.application.dto.command.ResumeSessionCommand;
 import dev.localllm.harness.application.dto.command.SendMessageCommand;
 import dev.localllm.harness.application.dto.command.StartSessionCommand;
 import dev.localllm.harness.application.dto.command.SwitchModelCommand;
 import dev.localllm.harness.application.dto.command.ToggleThinkingCommand;
+import dev.localllm.harness.application.dto.query.ContextUsageCriteria;
 import dev.localllm.harness.application.dto.query.ListModelsCriteria;
+import dev.localllm.harness.application.dto.query.ListSessionsCriteria;
 import dev.localllm.harness.infrastructure.in.cli.ReplSession;
 
 /**
- * Builds use case commands from REPL input and the CLI state.
+ * Builds use case commands and queries from REPL input and the CLI state.
  */
 @Mapper
 public interface ReplCliMapper {
@@ -20,11 +24,12 @@ public interface ReplCliMapper {
   /**
    * Builds the command for a chat turn.
    *
-   * @param session CLI state with session, model and thinking flag
-   * @param text user message
+   * @param session CLI state with session, directory, model and thinking flag
+   * @param text user message, with file mentions already expanded
    * @return send command
    */
   @Mapping(target = "sessionId", source = "session.sessionId")
+  @Mapping(target = "workingDirectory", source = "session.workingDirectory")
   @Mapping(target = "model", source = "session.model")
   @Mapping(target = "thinkingEnabled", source = "session.thinkingEnabled")
   @Mapping(target = "text", source = "text")
@@ -39,13 +44,31 @@ public interface ReplCliMapper {
   CancelTurnCommand toCancelTurnCommand(ReplSession session);
 
   /**
-   * Builds the command that replaces the current session.
+   * Builds the command that starts a new session.
    *
-   * @param session CLI state; its current session becomes the previous one
+   * @param session CLI state
    * @return start command
    */
-  @Mapping(target = "previousSessionId", source = "sessionId")
   StartSessionCommand toStartSessionCommand(ReplSession session);
+
+  /**
+   * Builds the command that continues a stored session.
+   *
+   * @param session CLI state with the working directory
+   * @param reference session identifier or prefix; empty for the latest session
+   * @return resume command
+   */
+  @Mapping(target = "workingDirectory", source = "session.workingDirectory")
+  @Mapping(target = "reference", source = "reference")
+  ResumeSessionCommand toResumeSessionCommand(ReplSession session, String reference);
+
+  /**
+   * Builds the command that compacts the current session.
+   *
+   * @param session CLI state with session and model
+   * @return compact command
+   */
+  CompactSessionCommand toCompactSessionCommand(ReplSession session);
 
   /**
    * Builds the command that switches the model.
@@ -75,4 +98,20 @@ public interface ReplCliMapper {
    */
   @Mapping(target = "namePrefix", source = "namePrefix")
   ListModelsCriteria toListModelsCriteria(String namePrefix);
+
+  /**
+   * Builds the session list criteria for the working directory.
+   *
+   * @param session CLI state with the working directory
+   * @return list criteria
+   */
+  ListSessionsCriteria toListSessionsCriteria(ReplSession session);
+
+  /**
+   * Builds the context usage criteria for the current session and model.
+   *
+   * @param session CLI state
+   * @return usage criteria
+   */
+  ContextUsageCriteria toContextUsageCriteria(ReplSession session);
 }

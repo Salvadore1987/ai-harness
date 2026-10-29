@@ -10,9 +10,11 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import dev.localllm.harness.application.dto.result.ModelSummaryResult;
+import dev.localllm.harness.application.dto.result.SessionSummaryResult;
 import dev.localllm.harness.application.dto.result.TurnResult;
 import dev.localllm.harness.application.exception.HarnessException;
 import dev.localllm.harness.application.model.TurnStatus;
+import dev.localllm.harness.application.port.in.ResumeSessionUseCase;
 import dev.localllm.harness.application.port.in.StartSessionUseCase;
 import dev.localllm.harness.application.port.in.SwitchModelUseCase;
 import dev.localllm.harness.infrastructure.config.HarnessProperties;
@@ -20,7 +22,8 @@ import dev.localllm.harness.infrastructure.in.cli.handlers.CliErrorReporter;
 import dev.localllm.harness.infrastructure.in.cli.mapper.ReplCliMapper;
 
 /**
- * Entry command: {@code harness [--model M] [--cwd DIR] [--no-think] [--verbose] [-p PROMPT]}.
+ * Entry command: {@code harness [--model M] [--cwd DIR] [--resume [ID]] [--no-think] [--verbose]
+ * [-p PROMPT]}.
  *
  * <p>Without {@code -p} it opens the REPL; with {@code -p} it runs one turn, prints the answer
  * and exits with 0 on success or 1 on failure.
@@ -42,6 +45,10 @@ public class HarnessCommand implements Callable<Integer> {
   @Option(names = "--cwd", description = "Working directory, defaults to the current one.")
   private @Nullable Path workingDirectory;
 
+  @Option(names = "--resume", arity = "0..1", fallbackValue = "", paramLabel = "ID",
+      description = "Continue a stored session: the latest of the directory, or the given id.")
+  private @Nullable String resume;
+
   @Option(names = "--no-think", description = "Start with the thinking mode turned off.")
   private boolean noThink;
 
@@ -52,6 +59,7 @@ public class HarnessCommand implements Callable<Integer> {
   private @Nullable String prompt;
 
   private final StartSessionUseCase startSessionUseCase;
+  private final ResumeSessionUseCase resumeSessionUseCase;
   private final SwitchModelUseCase switchModelUseCase;
   private final ReplCliMapper mapper;
   private final TurnExecutor turnExecutor;
@@ -63,6 +71,7 @@ public class HarnessCommand implements Callable<Integer> {
    * Creates the command.
    *
    * @param startSessionUseCase starts the session of this run
+   * @param resumeSessionUseCase finds the session for {@code --resume}
    * @param switchModelUseCase validates the startup model
    * @param mapper builds commands from the CLI state
    * @param turnExecutor runs the single turn of {@code -p}
@@ -72,6 +81,7 @@ public class HarnessCommand implements Callable<Integer> {
    */
   public HarnessCommand(
       StartSessionUseCase startSessionUseCase,
+      ResumeSessionUseCase resumeSessionUseCase,
       SwitchModelUseCase switchModelUseCase,
       ReplCliMapper mapper,
       TurnExecutor turnExecutor,
@@ -79,6 +89,7 @@ public class HarnessCommand implements Callable<Integer> {
       CliErrorReporter errorReporter,
       HarnessProperties properties) {
     this.startSessionUseCase = startSessionUseCase;
+    this.resumeSessionUseCase = resumeSessionUseCase;
     this.switchModelUseCase = switchModelUseCase;
     this.mapper = mapper;
     this.turnExecutor = turnExecutor;
@@ -93,9 +104,10 @@ public class HarnessCommand implements Callable<Integer> {
         model == null ? properties.model() : model,
         properties.thinking().enabled() && !noThink,
         verbose,
-        workingDirectory == null ? Path.of("").toAbsolutePath() : workingDirectory);
-    session.setSessionId(
-        startSessionUseCase.execute(mapper.toStartSessionCommand(session)).sessionId());
+        workingDirectory == null ? Path.of("") : workingDirectory);
+    if (!openSession(session)) {
+      return FAILURE;
+    }
     boolean modelReady = prepareModel(session);
 
     String singlePrompt = prompt;
@@ -109,6 +121,27 @@ public class HarnessCommand implements Callable<Integer> {
     }
     replRunner.run(session);
     return SUCCESS;
+  }
+
+  private boolean openSession(ReplSession session) {
+    String reference = resume;
+    if (reference == null) {
+      session.startNew(
+          startSessionUseCase.execute(mapper.toStartSessionCommand(session)).sessionId());
+      return true;
+    }
+    try {
+      SessionSummaryResult resumed =
+          resumeSessionUseCase.execute(mapper.toResumeSessionCommand(session, reference));
+      session.resume(resumed);
+      if (model == null) {
+        session.applyModelName(resumed.model());
+      }
+      return true;
+    } catch (HarnessException e) {
+      errorReporter.report(e);
+      return false;
+    }
   }
 
   private boolean prepareModel(ReplSession session) {

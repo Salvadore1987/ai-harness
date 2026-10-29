@@ -1,50 +1,123 @@
 package dev.localllm.harness.application.service;
 
+import java.nio.file.Path;
+import java.time.Instant;
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 
 import dev.localllm.harness.application.dto.command.CancelTurnCommand;
+import dev.localllm.harness.application.dto.command.ResumeSessionCommand;
 import dev.localllm.harness.application.dto.command.StartSessionCommand;
+import dev.localllm.harness.application.dto.query.ListSessionsCriteria;
 import dev.localllm.harness.application.dto.result.SessionResult;
+import dev.localllm.harness.application.dto.result.SessionSummaryResult;
+import dev.localllm.harness.application.exception.SessionNotFoundException;
 import dev.localllm.harness.application.fixture.FakeChatModelPort;
-import dev.localllm.harness.application.fixture.InMemoryConversationPort;
+import dev.localllm.harness.application.fixture.FakeSessionCatalogPort;
 import dev.localllm.harness.application.mapper.TurnApplicationMapper;
-import dev.localllm.harness.application.model.ChatMessage;
-import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.SessionId;
+import dev.localllm.harness.application.model.SessionInfo;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SessionServicesTest {
 
+  private static final Path CWD = Path.of("/work/project");
+  private static final Path OTHER = Path.of("/work/other");
+
   private final TurnApplicationMapper mapper = Mappers.getMapper(TurnApplicationMapper.class);
-  private final InMemoryConversationPort conversation = new InMemoryConversationPort();
+  private final FakeSessionCatalogPort catalog = new FakeSessionCatalogPort();
+  private final ResumeSessionService resume = new ResumeSessionService(catalog, mapper);
 
   @Test
-  void startSession_WithPreviousSession_ClearsItsHistoryAndReturnsNewId() {
+  void startSession_Always_ReturnsNewTimeOrderedId() {
     // Arrange
-    SessionId previous = SessionId.newId();
-    conversation.append(previous, new ChatMessage(Role.USER, "old"));
-    StartSessionService service = new StartSessionService(conversation, mapper);
+    StartSessionService service = new StartSessionService(mapper);
 
     // Act
-    SessionResult result = service.execute(new StartSessionCommand(previous));
+    SessionResult first = service.execute(new StartSessionCommand());
+    SessionResult second = service.execute(new StartSessionCommand());
 
     // Assert
-    assertThat(conversation.history(previous)).isEmpty();
-    assertThat(result.sessionId()).isNotEqualTo(previous);
+    assertThat(first.sessionId().value().version()).isEqualTo(7);
+    assertThat(second.sessionId()).isNotEqualTo(first.sessionId());
   }
 
   @Test
-  void startSession_OnStartup_ReturnsTimeOrderedId() {
+  void resume_WithoutReference_ReturnsLatestSessionOfDirectory() {
     // Arrange
-    StartSessionService service = new StartSessionService(conversation, mapper);
+    SessionInfo older = register(CWD, "older", "2026-10-28T10:00:00Z");
+    SessionInfo newer = register(CWD, "newer", "2026-10-29T10:00:00Z");
+    register(OTHER, "elsewhere", "2026-10-30T10:00:00Z");
 
     // Act
-    SessionResult result = service.execute(new StartSessionCommand(null));
+    SessionSummaryResult result = resume.execute(new ResumeSessionCommand(CWD, ""));
 
     // Assert
-    assertThat(result.sessionId().value().version()).isEqualTo(7);
+    assertThat(result.sessionId()).isEqualTo(newer.sessionId()).isNotEqualTo(older.sessionId());
+  }
+
+  @Test
+  void resume_WithUniquePrefix_ReturnsMatchingSession() {
+    // Arrange
+    SessionInfo session = register(CWD, "one", "2026-10-29T10:00:00Z");
+    String prefix = session.sessionId().toString().substring(0, 13);
+
+    // Act
+    SessionSummaryResult result = resume.execute(new ResumeSessionCommand(CWD, prefix));
+
+    // Assert
+    assertThat(result.title()).isEqualTo("one");
+  }
+
+  @Test
+  void resume_WithFullIdFromOtherDirectory_ReturnsThatSession() {
+    // Arrange
+    SessionInfo session = register(OTHER, "foreign", "2026-10-29T10:00:00Z");
+
+    // Act
+    SessionSummaryResult result =
+        resume.execute(new ResumeSessionCommand(CWD, session.sessionId().toString()));
+
+    // Assert
+    assertThat(result.title()).isEqualTo("foreign");
+  }
+
+  @Test
+  void resume_WithoutStoredSessions_ThrowsSessionNotFound() {
+    // Act & Assert
+    assertThatThrownBy(() -> resume.execute(new ResumeSessionCommand(CWD, "")))
+        .isInstanceOf(SessionNotFoundException.class);
+  }
+
+  @Test
+  void resume_WithAmbiguousPrefix_ThrowsSessionNotFound() {
+    // Arrange
+    register(CWD, "a", "2026-10-29T10:00:00Z");
+    register(CWD, "b", "2026-10-29T11:00:00Z");
+
+    // Act & Assert
+    assertThatThrownBy(() -> resume.execute(new ResumeSessionCommand(CWD, "0")))
+        .isInstanceOf(SessionNotFoundException.class)
+        .hasMessageContaining("0");
+  }
+
+  @Test
+  void listSessions_ForDirectory_ReturnsItsSessionsNewestFirst() {
+    // Arrange
+    register(CWD, "older", "2026-10-28T10:00:00Z");
+    register(CWD, "newer", "2026-10-29T10:00:00Z");
+    register(OTHER, "elsewhere", "2026-10-30T10:00:00Z");
+    ListSessionsQueryService service = new ListSessionsQueryService(catalog, mapper);
+
+    // Act
+    List<SessionSummaryResult> result = service.execute(new ListSessionsCriteria(CWD));
+
+    // Assert
+    assertThat(result).extracting(SessionSummaryResult::title).containsExactly("newer", "older");
   }
 
   @Test
@@ -58,5 +131,12 @@ class SessionServicesTest {
 
     // Assert
     assertThat(chatModel.cancelCount()).isEqualTo(1);
+  }
+
+  private SessionInfo register(Path cwd, String title, String createdAt) {
+    SessionInfo info = new SessionInfo(SessionId.newId(), cwd, "qwen3.5:27b", title,
+        Instant.parse(createdAt), 2);
+    catalog.register(info);
+    return info;
   }
 }

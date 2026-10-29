@@ -1,5 +1,9 @@
 package dev.localllm.harness.application.service;
 
+import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -10,14 +14,18 @@ import dev.localllm.harness.application.dto.command.SendMessageCommand;
 import dev.localllm.harness.application.dto.result.TurnResult;
 import dev.localllm.harness.application.exception.LlmUnavailableException;
 import dev.localllm.harness.application.fixture.FakeChatModelPort;
+import dev.localllm.harness.application.fixture.FakeSessionCatalogPort;
+import dev.localllm.harness.application.fixture.FixedContextBudgetPort;
 import dev.localllm.harness.application.fixture.InMemoryConversationPort;
 import dev.localllm.harness.application.fixture.RecordingTurnOutputPort;
 import dev.localllm.harness.application.mapper.TurnApplicationMapper;
 import dev.localllm.harness.application.model.ChatChunk;
 import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.ChatRequest;
+import dev.localllm.harness.application.model.ContextPolicy;
 import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.SessionId;
+import dev.localllm.harness.application.model.SessionInfo;
 import dev.localllm.harness.application.model.TokenUsage;
 import dev.localllm.harness.application.model.TurnStatus;
 
@@ -27,17 +35,24 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SendMessageServiceTest {
 
   private static final String MODEL = "qwen3.5:27b";
+  private static final Path CWD = Path.of("/work/project");
+  private static final Instant NOW = Instant.parse("2026-10-29T10:00:00Z");
+  private static final ContextPolicy POLICY = new ContextPolicy(0.8, 2, 4.0);
 
   private final SessionId sessionId = SessionId.newId();
   private final InMemoryConversationPort conversation = new InMemoryConversationPort();
   private final FakeChatModelPort chatModel = new FakeChatModelPort();
   private final RecordingTurnOutputPort output = new RecordingTurnOutputPort();
+  private final FakeSessionCatalogPort catalog = new FakeSessionCatalogPort();
+  private final FixedContextBudgetPort budget = new FixedContextBudgetPort(65536);
   private SendMessageService service;
 
   @BeforeEach
   void setUp() {
-    service = new SendMessageService(
-        conversation, chatModel, output, Mappers.getMapper(TurnApplicationMapper.class));
+    ContextMeter meter = new ContextMeter(budget, POLICY);
+    service = new SendMessageService(conversation, catalog, chatModel, output, meter,
+        new ConversationCompactor(conversation, chatModel, meter, POLICY),
+        Mappers.getMapper(TurnApplicationMapper.class), Clock.fixed(NOW, ZoneOffset.UTC));
   }
 
   @Test
@@ -146,7 +161,76 @@ class SendMessageServiceTest {
     assertThat(output.results()).isEqualTo(List.of(result));
   }
 
+  @Test
+  void execute_OnFirstTurn_RegistersSessionWithSingleLineTitle() {
+    // Arrange
+    chatModel.respondWith(new ChatChunk.Content("ok"));
+
+    // Act
+    service.execute(command("  Explain\n  the build  ", true));
+
+    // Assert
+    assertThat(catalog.find(sessionId)).contains(
+        new SessionInfo(sessionId, CWD, MODEL, "Explain the build", NOW, 0));
+  }
+
+  @Test
+  void execute_OnLaterTurn_KeepsOriginalMetadata() {
+    // Arrange
+    chatModel.respondWith(new ChatChunk.Content("ok"));
+    service.execute(command("first question", true));
+
+    // Act
+    service.execute(command("second question", true));
+
+    // Assert
+    assertThat(catalog.find(sessionId)).hasValueSatisfying(
+        info -> assertThat(info.title()).isEqualTo("first question"));
+  }
+
+  @Test
+  void execute_WithThinking_RecordsItSeparatelyFromHistory() {
+    // Arrange
+    chatModel.respondWith(new ChatChunk.Thinking("step 1, "), new ChatChunk.Thinking("step 2"),
+        new ChatChunk.Content("done"));
+
+    // Act
+    service.execute(command("go", true));
+
+    // Assert
+    assertThat(conversation.thinking(sessionId)).containsExactly("step 1, step 2");
+  }
+
+  @Test
+  void execute_WhenHistoryReachesThreshold_CompactsAndNotifies() {
+    // Arrange
+    budget.setContextLength(40);
+    chatModel.respondWith(new ChatChunk.Content("a".repeat(60)));
+    service.execute(command("q1", false));
+
+    // Act
+    service.execute(command("q2", false));
+
+    // Assert
+    assertThat(output.compactions()).isNotEmpty();
+    assertThat(output.compactions().getLast().compacted()).isTrue();
+    assertThat(conversation.history(sessionId).getFirst().role()).isEqualTo(Role.SYSTEM);
+  }
+
+  @Test
+  void execute_BelowThreshold_DoesNotCompact() {
+    // Arrange
+    chatModel.respondWith(new ChatChunk.Content("short"));
+
+    // Act
+    service.execute(command("q", false));
+
+    // Assert
+    assertThat(output.compactions()).isEmpty();
+    assertThat(conversation.history(sessionId)).hasSize(2);
+  }
+
   private SendMessageCommand command(String text, boolean thinking) {
-    return new SendMessageCommand(sessionId, MODEL, text, thinking);
+    return new SendMessageCommand(sessionId, CWD, MODEL, text, thinking);
   }
 }

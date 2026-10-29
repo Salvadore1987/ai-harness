@@ -1,8 +1,14 @@
 package dev.localllm.harness.infrastructure.in.cli;
 
+import java.time.Instant;
+
 import org.junit.jupiter.api.Test;
 
+import dev.localllm.harness.application.model.ChatChunk;
+import dev.localllm.harness.application.model.ChatMessage;
+import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.SessionId;
+import dev.localllm.harness.application.model.SessionInfo;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -108,6 +114,71 @@ class SlashCommandDispatcherTest {
 
     // Assert
     assertThat(session.getSessionId()).isNotNull().isNotEqualTo(before);
+    assertThat(context.terminal.plainText()).contains("/resume");
+  }
+
+  @Test
+  void dispatch_Sessions_ListsStoredSessionsWithShortIds() {
+    // Arrange
+    SessionInfo stored = register("Explain the build");
+
+    // Act
+    dispatcher.dispatch("/sessions", session);
+
+    // Assert
+    assertThat(context.terminal.plainText())
+        .contains(stored.sessionId().toString().substring(0, 13))
+        .contains("Explain the build")
+        .contains("/resume <id>");
+  }
+
+  @Test
+  void dispatch_ResumeWithoutArgument_SwitchesToLatestSession() {
+    // Arrange
+    SessionInfo stored = register("Earlier work");
+
+    // Act
+    dispatcher.dispatch("/resume", session);
+
+    // Assert
+    assertThat(session.getSessionId()).isEqualTo(stored.sessionId());
+    assertThat(session.getTitle()).isEqualTo("Earlier work");
+  }
+
+  @Test
+  void dispatch_ResumeUnknown_ReportsSessionNotFound() {
+    // Act
+    dispatcher.dispatch("/resume ffff", session);
+
+    // Assert
+    assertThat(context.terminal.plainText()).contains("✗ Сессия не найдена");
+  }
+
+  @Test
+  void dispatch_Compact_SummarizesLongHistory() {
+    // Arrange
+    SessionId current = session.getSessionId();
+    for (String text : new String[] {"q1", "a1", "q2", "a2", "q3", "a3"}) {
+      context.conversation.append(current,
+          new ChatMessage(text.startsWith("q") ? Role.USER : Role.ASSISTANT, text));
+    }
+    context.chatModel.respondWith(new ChatChunk.Content("summary"));
+
+    // Act
+    dispatcher.dispatch("/compact", session);
+
+    // Assert
+    assertThat(context.conversation.history(current)).hasSize(3);
+    assertThat(context.terminal.plainText()).contains("История сжата");
+  }
+
+  @Test
+  void dispatch_Context_PrintsUsage() {
+    // Act
+    dispatcher.dispatch("/context", session);
+
+    // Assert
+    assertThat(context.terminal.plainText()).contains("Контекст: ~0 из 65536 токенов (0 %)");
   }
 
   @Test
@@ -117,5 +188,12 @@ class SlashCommandDispatcherTest {
 
     // Assert
     assertThat(context.terminal.plainText()).contains("Неизвестная команда /frobnicate");
+  }
+
+  private SessionInfo register(String title) {
+    SessionInfo info = new SessionInfo(SessionId.newId(), CliTestContext.CWD, "qwen3.5:27b",
+        title, Instant.parse("2026-10-29T10:00:00Z"), 4);
+    context.catalog.register(info);
+    return info;
   }
 }

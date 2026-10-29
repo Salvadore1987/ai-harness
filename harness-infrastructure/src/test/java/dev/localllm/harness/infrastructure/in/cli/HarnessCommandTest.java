@@ -1,11 +1,17 @@
 package dev.localllm.harness.infrastructure.in.cli;
 
+import java.time.Instant;
+
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
 import dev.localllm.harness.application.exception.LlmUnavailableException;
 import dev.localllm.harness.application.model.ChatChunk;
+import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.ChatRequest;
+import dev.localllm.harness.application.model.Role;
+import dev.localllm.harness.application.model.SessionId;
+import dev.localllm.harness.application.model.SessionInfo;
 import dev.localllm.harness.application.model.TurnStatus;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -93,6 +99,39 @@ class HarnessCommandTest {
 
     // Assert
     assertThat(exitCode).isEqualTo(1);
+  }
+
+  @Test
+  void execute_PrintModeWithResume_ContinuesLatestSessionAndItsModel() {
+    // Arrange
+    SessionId stored = SessionId.newId();
+    context.catalog.register(new SessionInfo(stored, CliTestContext.CWD,
+        "codellama:7b-instruct", "earlier", Instant.parse("2026-10-29T10:00:00Z"), 2));
+    context.conversation.append(stored, new ChatMessage(Role.USER, "earlier question"));
+    context.conversation.append(stored, new ChatMessage(Role.ASSISTANT, "earlier answer"));
+    context.chatModel.respondWith(new ChatChunk.Content("continued"));
+
+    // Act
+    int exitCode = new CommandLine(context.command())
+        .execute("--cwd", CliTestContext.CWD.toString(), "--resume", "-p", "and now?");
+
+    // Assert
+    assertThat(exitCode).isZero();
+    ChatRequest request = context.chatModel.requests().getFirst();
+    assertThat(request.model()).isEqualTo("codellama:7b-instruct");
+    assertThat(request.messages()).extracting(ChatMessage::content)
+        .containsExactly("earlier question", "earlier answer", "and now?");
+  }
+
+  @Test
+  void execute_ResumeWithoutStoredSessions_ReportsAndExitsWithOne() {
+    // Act
+    int exitCode = new CommandLine(context.command())
+        .execute("--cwd", CliTestContext.CWD.toString(), "--resume", "-p", "hi");
+
+    // Assert
+    assertThat(exitCode).isEqualTo(1);
+    assertThat(context.terminal.plainText()).contains("✗ Сессия не найдена");
   }
 
   @Test
