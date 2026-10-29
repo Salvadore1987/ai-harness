@@ -1,6 +1,7 @@
 package dev.localllm.harness.infrastructure.in.cli;
 
 import java.nio.file.Path;
+import java.util.Locale;
 
 import org.jline.keymap.KeyMap;
 import org.jline.reader.Binding;
@@ -29,6 +30,7 @@ import dev.localllm.harness.infrastructure.config.HarnessProperties;
 public class ReplRunner {
 
   private static final String PROMPT = "› ";
+  private static final String AGENT_PROMPT = "agent› ";
   private static final String INSERT_NEWLINE_WIDGET = "harness-insert-newline";
   private static final AttributedStyle HINT_STYLE = AttributedStyle.DEFAULT.faint();
 
@@ -68,7 +70,7 @@ public class ReplRunner {
     while (true) {
       String line;
       try {
-        line = reader.readLine(PROMPT);
+        line = reader.readLine(session.getMode() == ReplMode.AGENT ? AGENT_PROMPT : PROMPT);
       } catch (UserInterruptException e) {
         if (!e.getPartialLine().isEmpty()) {
           exitArmed = false;
@@ -135,6 +137,7 @@ public class ReplRunner {
   private void printBanner(ReplSession session) {
     String title = session.getTitle();
     hint("harness · модель " + session.getModel()
+        + " · режим " + session.getMode().name().toLowerCase(Locale.ROOT)
         + " · размышления " + (session.isThinkingEnabled() ? "on" : "off")
         + " · " + session.getWorkingDirectory()
         + " · /help — команды");

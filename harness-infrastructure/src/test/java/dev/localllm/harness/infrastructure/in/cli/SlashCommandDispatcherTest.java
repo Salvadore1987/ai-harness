@@ -163,6 +163,7 @@ class SlashCommandDispatcherTest {
           new ChatMessage(text.startsWith("q") ? Role.USER : Role.ASSISTANT, text));
     }
     context.chatModel.respondWith(new ChatChunk.Content("summary"));
+    context.budget.setContextLength(40);
 
     // Act
     dispatcher.dispatch("/compact", session);
@@ -170,6 +171,81 @@ class SlashCommandDispatcherTest {
     // Assert
     assertThat(context.conversation.history(current)).hasSize(3);
     assertThat(context.terminal.plainText()).contains("История сжата");
+  }
+
+  @Test
+  void dispatch_ModeAgent_SwitchesMode() {
+    // Act
+    dispatcher.dispatch("/mode agent", session);
+
+    // Assert
+    assertThat(session.getMode()).isEqualTo(ReplMode.AGENT);
+    assertThat(context.terminal.plainText()).contains("Режим: agent");
+  }
+
+  @Test
+  void dispatch_ModeWithoutArgument_ShowsCurrentMode() {
+    // Act
+    dispatcher.dispatch("/mode", session);
+
+    // Assert
+    assertThat(context.terminal.plainText()).contains("Режим: chat");
+  }
+
+  @Test
+  void dispatch_ModeWithUnknownValue_PrintsUsage() {
+    // Act
+    dispatcher.dispatch("/mode turbo", session);
+
+    // Assert
+    assertThat(session.getMode()).isEqualTo(ReplMode.CHAT);
+    assertThat(context.terminal.plainText()).contains("Использование: /mode chat|agent");
+  }
+
+  @Test
+  void dispatch_ModeAgentForModelWithoutTools_KeepsChat() {
+    // Arrange
+    dispatcher.dispatch("/model codellama:7b-instruct", session);
+
+    // Act
+    dispatcher.dispatch("/mode agent", session);
+
+    // Assert
+    assertThat(session.getMode()).isEqualTo(ReplMode.CHAT);
+    assertThat(context.terminal.plainText()).contains("не поддерживает инструменты");
+  }
+
+  @Test
+  void dispatch_ModelWithoutToolsInAgentMode_FallsBackToChat() {
+    // Arrange
+    dispatcher.dispatch("/mode agent", session);
+
+    // Act
+    dispatcher.dispatch("/model codellama:7b-instruct", session);
+
+    // Assert
+    assertThat(session.getMode()).isEqualTo(ReplMode.CHAT);
+    assertThat(context.terminal.plainText()).contains("режим chat");
+  }
+
+  @Test
+  void dispatch_Tools_ListsToolsWithSource() {
+    // Act
+    dispatcher.dispatch("/tools", session);
+
+    // Assert
+    assertThat(context.terminal.plainText())
+        .contains("read_file    builtin  Fake read_file")
+        .contains("glob         builtin  Fake glob");
+  }
+
+  @Test
+  void dispatch_ToolsWithUnknownPrefix_SaysNothingMatches() {
+    // Act
+    dispatcher.dispatch("/tools zzz", session);
+
+    // Assert
+    assertThat(context.terminal.plainText()).contains("Нет инструментов на zzz");
   }
 
   @Test

@@ -12,6 +12,7 @@ import dev.localllm.harness.application.model.ChatRequest;
 import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.SessionInfo;
+import dev.localllm.harness.application.model.ToolCall;
 import dev.localllm.harness.application.model.TurnStatus;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,6 +35,49 @@ class HarnessCommandTest {
     assertThat(request.model()).isEqualTo("qwen3.5:27b");
     assertThat(request.thinkingEnabled()).isTrue();
     assertThat(context.output.content()).containsExactly("hi");
+  }
+
+  @Test
+  void execute_PrintModeInAgentMode_RunsAgentLoopWithTools() {
+    // Arrange
+    context.chatModel.thenCall(new ToolCall("c1", "read_file", "{\"path\":\"Calc.java\"}"))
+        .thenAnswer(new ChatChunk.Content("add sums two numbers"));
+
+    // Act
+    int exitCode = new CommandLine(context.command())
+        .execute("--mode", "AGENT", "--verbose", "-p", "what does add do?");
+
+    // Assert
+    assertThat(exitCode).isZero();
+    assertThat(context.tools.executed()).extracting(ToolCall::name).containsExactly("read_file");
+    assertThat(context.chatModel.requests().getFirst().tools()).isNotEmpty();
+    assertThat(context.output.content()).containsExactly("add sums two numbers");
+    assertThat(context.displayOptions.isVerbose()).isTrue();
+  }
+
+  @Test
+  void execute_WithUnknownMode_FailsWithUsageError() {
+    // Act
+    int exitCode = new CommandLine(context.command()).execute("--mode", "turbo", "-p", "hi");
+
+    // Assert
+    assertThat(exitCode).isNotZero();
+    assertThat(context.chatModel.requests()).isEmpty();
+  }
+
+  @Test
+  void execute_AgentTurnHittingIterationLimit_ReportsLimitAndFails() {
+    // Arrange
+    for (int i = 0; i < 25; i++) {
+      context.chatModel.thenCall(new ToolCall("c" + i, "glob", "{}"));
+    }
+
+    // Act
+    int exitCode = new CommandLine(context.command()).execute("--mode", "agent", "-p", "loop");
+
+    // Assert
+    assertThat(exitCode).isOne();
+    assertThat(context.terminal.plainText()).contains("Агент остановлен: 25 запросов");
   }
 
   @Test

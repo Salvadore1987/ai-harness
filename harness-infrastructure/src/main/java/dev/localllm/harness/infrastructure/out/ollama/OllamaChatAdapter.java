@@ -1,6 +1,7 @@
 package dev.localllm.harness.infrastructure.out.ollama;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -8,6 +9,7 @@ import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.client.AdvisorParams;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.ollama.api.OllamaChatOptions;
@@ -18,10 +20,12 @@ import dev.localllm.harness.application.model.ChatChunk;
 import dev.localllm.harness.application.model.ChatCompletion;
 import dev.localllm.harness.application.model.ChatRequest;
 import dev.localllm.harness.application.model.TokenUsage;
+import dev.localllm.harness.application.model.ToolCall;
 import dev.localllm.harness.application.model.TurnStatus;
 import dev.localllm.harness.application.port.out.ChatModelPort;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.ChatMessageSpringAiMapper;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.ChatResponseSpringAiMapper;
+import dev.localllm.harness.infrastructure.out.ollama.toolcall.NativeToolCallMode;
 
 /**
  * Streams answers from Ollama through the Spring AI {@link ChatClient}.
@@ -30,6 +34,10 @@ import dev.localllm.harness.infrastructure.out.ollama.mapper.ChatResponseSpringA
  * {@code spring.ai.ollama.chat.*} such as {@code num-ctx} and {@code keep-alive} are kept.
  * Cancellation completes the stream through {@code takeUntilOther}, which disposes the HTTP
  * exchange.
+ *
+ * <p>Tools are passed natively through {@link NativeToolCallMode}. The {@code ToolCallingAdvisor}
+ * that {@link ChatClient} registers by default is turned off: tool calls are returned to the
+ * application, which executes them in its own loop.
  */
 @Component
 public class OllamaChatAdapter implements ChatModelPort {
@@ -40,6 +48,7 @@ public class OllamaChatAdapter implements ChatModelPort {
   private final ChatMessageSpringAiMapper messageMapper;
   private final ChatResponseSpringAiMapper responseMapper;
   private final OllamaErrorTranslator errorTranslator;
+  private final NativeToolCallMode toolCallMode;
   private final AtomicReference<ActiveTurn> activeTurn = new AtomicReference<>();
 
   /**
@@ -49,16 +58,19 @@ public class OllamaChatAdapter implements ChatModelPort {
    * @param messageMapper converts the history into Spring AI messages
    * @param responseMapper converts streamed responses into chunks
    * @param errorTranslator translates client failures
+   * @param toolCallMode passes tools to the model and reads its tool calls
    */
   public OllamaChatAdapter(
       ChatClient.Builder chatClientBuilder,
       ChatMessageSpringAiMapper messageMapper,
       ChatResponseSpringAiMapper responseMapper,
-      OllamaErrorTranslator errorTranslator) {
+      OllamaErrorTranslator errorTranslator,
+      NativeToolCallMode toolCallMode) {
     this.chatClient = chatClientBuilder.build();
     this.messageMapper = messageMapper;
     this.responseMapper = responseMapper;
     this.errorTranslator = errorTranslator;
+    this.toolCallMode = toolCallMode;
   }
 
   @Override
@@ -71,6 +83,8 @@ public class OllamaChatAdapter implements ChatModelPort {
       chatClient.prompt()
           .messages(messageMapper.toSpringAiMessages(request.messages()))
           .options(options(request))
+          .tools(toolCallMode.toolCallbacks(request.tools()).toArray())
+          .advisors(AdvisorParams.toolCallingAdvisorAutoRegister(false))
           .stream()
           .chatResponse()
           .takeUntilOther(turn.cancelSignal().asMono())
@@ -114,6 +128,7 @@ public class OllamaChatAdapter implements ChatModelPort {
 
     private final Consumer<ChatChunk> chunkConsumer;
     private final StringBuilder content = new StringBuilder();
+    private final List<ToolCall> toolCalls = new ArrayList<>();
     private TokenUsage usage = TokenUsage.EMPTY;
     private boolean receivedChunks;
 
@@ -130,6 +145,11 @@ public class OllamaChatAdapter implements ChatModelPort {
         }
         chunkConsumer.accept(chunk);
       }
+      List<ToolCall> calls = toolCallMode.toolCalls(response);
+      if (!calls.isEmpty()) {
+        receivedChunks = true;
+        toolCalls.addAll(calls);
+      }
       TokenUsage reported = responseMapper.toTokenUsage(response.getMetadata().getUsage());
       if (reported.promptTokens() > 0 || reported.completionTokens() > 0) {
         usage = reported;
@@ -142,7 +162,7 @@ public class OllamaChatAdapter implements ChatModelPort {
 
     private synchronized ChatCompletion complete(TurnStatus status, long startedAt) {
       Duration elapsed = Duration.ofNanos(System.nanoTime() - startedAt);
-      return new ChatCompletion(content.toString(), status, usage, elapsed);
+      return new ChatCompletion(content.toString(), status, usage, elapsed, toolCalls);
     }
   }
 }

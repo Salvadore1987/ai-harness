@@ -16,7 +16,7 @@ public class SlashCommandDispatcher {
 
   /** Names of the supported commands, used for completion. */
   public static final List<String> COMMANDS = List.of("/help", "/exit", "/clear", "/sessions",
-      "/resume", "/compact", "/context", "/model", "/think");
+      "/resume", "/compact", "/context", "/model", "/think", "/mode", "/tools");
 
   private static final String HELP = """
       /help                 список команд
@@ -28,11 +28,14 @@ public class SlashCommandDispatcher {
       /context              сколько контекста занято
       /model [имя]          сменить модель; без имени — список установленных
       /think [on|off]       режим размышлений; без аргумента — текущее состояние
+      /mode [chat|agent]    режим: chat — ответ без инструментов, agent — модель читает файлы
+      /tools [префикс]      инструменты агента
       @путь                 приложить файл из рабочей директории (Tab — автодополнение)
       Многострочный ввод: \\ в конце строки или Alt+Enter. Ctrl+C прерывает генерацию.""";
 
   private final SessionSlashCommands sessionCommands;
   private final ModelSlashCommands modelCommands;
+  private final AgentSlashCommands agentCommands;
   private final CliErrorReporter errorReporter;
   private final Terminal terminal;
 
@@ -41,16 +44,19 @@ public class SlashCommandDispatcher {
    *
    * @param sessionCommands session-related commands
    * @param modelCommands model-related commands
+   * @param agentCommands agent-related commands
    * @param errorReporter prints failures
    * @param terminal terminal to print to
    */
   public SlashCommandDispatcher(
       SessionSlashCommands sessionCommands,
       ModelSlashCommands modelCommands,
+      AgentSlashCommands agentCommands,
       CliErrorReporter errorReporter,
       Terminal terminal) {
     this.sessionCommands = sessionCommands;
     this.modelCommands = modelCommands;
+    this.agentCommands = agentCommands;
     this.errorReporter = errorReporter;
     this.terminal = terminal;
   }
@@ -79,6 +85,8 @@ public class SlashCommandDispatcher {
         case "/context" -> sessionCommands.context(session);
         case "/model" -> modelCommands.model(session, argument);
         case "/think" -> modelCommands.think(session, argument);
+        case "/mode" -> agentCommands.mode(session, argument);
+        case "/tools" -> agentCommands.tools(argument);
         default -> println("Неизвестная команда " + parts[0] + ". Список команд: /help");
       }
     } catch (RuntimeException e) {

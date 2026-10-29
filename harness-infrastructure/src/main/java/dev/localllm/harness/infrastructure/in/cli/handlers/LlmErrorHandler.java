@@ -24,6 +24,11 @@ public class LlmErrorHandler implements CliExceptionHandler {
     if (error instanceof LlmUnavailableException unavailable) {
       return "Ollama недоступна на " + unavailable.getBaseUrl() + ". Запустите: ollama serve";
     }
-    return "Ошибка Ollama: " + error.getMessage();
+    String message = String.valueOf(error.getMessage());
+    if (message.contains("does not support tools")) {
+      return "Модель не поддерживает инструменты: " + message
+          + ". Переключитесь на /mode chat или выберите модель с пометкой tools: /model";
+    }
+    return "Ошибка Ollama: " + message;
   }
 }

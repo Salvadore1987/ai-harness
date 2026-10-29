@@ -3,6 +3,8 @@ package dev.localllm.harness.infrastructure.out.console;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 import org.jline.terminal.Terminal;
@@ -13,7 +15,10 @@ import org.springframework.stereotype.Component;
 
 import dev.localllm.harness.application.dto.result.CompactionResult;
 import dev.localllm.harness.application.dto.result.TurnResult;
+import dev.localllm.harness.application.model.ToolCall;
+import dev.localllm.harness.application.model.ToolResult;
 import dev.localllm.harness.application.port.out.TurnOutputPort;
+import dev.localllm.harness.infrastructure.config.DisplayOptions;
 import dev.localllm.harness.infrastructure.config.HarnessProperties;
 import dev.localllm.harness.infrastructure.config.HarnessProperties.ThinkingDisplay;
 
@@ -23,6 +28,8 @@ import dev.localllm.harness.infrastructure.config.HarnessProperties.ThinkingDisp
  * <p>Reasoning is shown dim with a {@code ✻} prefix ({@code stream} display) or as one summary
  * line ({@code summary} display). On a non-interactive terminal, for example {@code harness -p}
  * with redirected output, only the answer goes to stdout and the reasoning summary goes to stderr.
+ * Tool calls are shown as {@code ⏺ name(arguments)} followed by the first lines of the result,
+ * or the whole result with {@code --verbose}; on a non-interactive terminal they go to stderr.
  */
 @Component
 public class ConsoleTurnOutputAdapter implements TurnOutputPort {
@@ -35,10 +42,18 @@ public class ConsoleTurnOutputAdapter implements TurnOutputPort {
       AttributedStyle.DEFAULT.foreground(AttributedStyle.YELLOW);
   private static final AttributedStyle ERROR_STYLE =
       AttributedStyle.DEFAULT.foreground(AttributedStyle.RED);
+  private static final AttributedStyle TOOL_STYLE =
+      AttributedStyle.DEFAULT.foreground(AttributedStyle.GREEN);
+  private static final AttributedStyle TOOL_OUTPUT_STYLE = AttributedStyle.DEFAULT.faint();
+  private static final String TOOL_PREFIX = "⏺ ";
+  private static final String RESULT_PREFIX = "  ⎿ ";
+  private static final String RESULT_INDENT = "    ";
 
   private final Terminal terminal;
   private final ThinkingDisplay display;
   private final PrintStream diagnostics;
+  private final DisplayOptions displayOptions;
+  private final ToolCallFormatter formatter = new ToolCallFormatter();
 
   private Phase phase = Phase.IDLE;
   private long thinkingStartedAt;
@@ -50,16 +65,20 @@ public class ConsoleTurnOutputAdapter implements TurnOutputPort {
    *
    * @param terminal terminal to print to
    * @param properties harness settings with the thinking display mode
+   * @param displayOptions command line display flags
    */
   @Autowired
-  public ConsoleTurnOutputAdapter(Terminal terminal, HarnessProperties properties) {
-    this(terminal, properties.thinking().display(), System.err);
+  public ConsoleTurnOutputAdapter(
+      Terminal terminal, HarnessProperties properties, DisplayOptions displayOptions) {
+    this(terminal, properties.thinking().display(), System.err, displayOptions);
   }
 
-  ConsoleTurnOutputAdapter(Terminal terminal, ThinkingDisplay display, PrintStream diagnostics) {
+  ConsoleTurnOutputAdapter(Terminal terminal, ThinkingDisplay display, PrintStream diagnostics,
+      DisplayOptions displayOptions) {
     this.terminal = terminal;
     this.display = display;
     this.diagnostics = diagnostics;
+    this.displayOptions = displayOptions;
   }
 
   @Override
@@ -85,6 +104,52 @@ public class ConsoleTurnOutputAdapter implements TurnOutputPort {
     }
     phase = Phase.ANSWERING;
     print(text);
+  }
+
+  @Override
+  public synchronized void onToolCall(ToolCall call) {
+    if (phase == Phase.THINKING) {
+      finishThinking();
+    }
+    String formatted = formatter.call(call);
+    if (isInteractive()) {
+      endLine();
+      if (phase == Phase.ANSWERING) {
+        println("");
+      }
+      println(styled(TOOL_PREFIX, TOOL_STYLE) + formatted);
+      writer().flush();
+    } else {
+      diagnostics.println(TOOL_PREFIX + formatted);
+      diagnostics.flush();
+    }
+    phase = Phase.IDLE;
+  }
+
+  @Override
+  public synchronized void onToolResult(ToolResult result) {
+    boolean verbose = displayOptions.isVerbose();
+    List<String> lines = new ArrayList<>(formatter.outputLines(result, verbose));
+    if (verbose) {
+      lines.add(String.format(Locale.ROOT, "%.1f с%s", result.duration().toMillis() / 1000.0,
+          result.truncated() ? " · вывод обрезан" : ""));
+    }
+    AttributedStyle style = result.error() ? ERROR_STYLE : TOOL_OUTPUT_STYLE;
+    boolean interactive = isInteractive();
+    for (int i = 0; i < lines.size(); i++) {
+      String prefix = i == 0 ? RESULT_PREFIX : RESULT_INDENT;
+      if (interactive) {
+        println(prefix + styled(lines.get(i), style));
+      } else {
+        diagnostics.println(prefix + lines.get(i));
+      }
+    }
+    if (interactive) {
+      println("");
+      writer().flush();
+    } else {
+      diagnostics.flush();
+    }
   }
 
   @Override

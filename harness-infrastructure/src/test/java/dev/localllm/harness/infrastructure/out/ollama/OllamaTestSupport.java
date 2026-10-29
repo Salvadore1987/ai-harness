@@ -12,6 +12,8 @@ import dev.localllm.harness.infrastructure.TestProperties;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.ChatMessageSpringAiMapper;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.ChatResponseSpringAiMapper;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.ModelInfoOllamaMapper;
+import dev.localllm.harness.infrastructure.out.ollama.mapper.ToolCallSpringAiMapper;
+import dev.localllm.harness.infrastructure.out.ollama.toolcall.NativeToolCallMode;
 
 /**
  * Builds the Ollama adapters against a given base URL the same way the auto-configuration does.
@@ -39,7 +41,8 @@ final class OllamaTestSupport {
         ChatClient.builder(chatModel),
         Mappers.getMapper(ChatMessageSpringAiMapper.class),
         Mappers.getMapper(ChatResponseSpringAiMapper.class),
-        translator(baseUrl));
+        translator(baseUrl),
+        new NativeToolCallMode(Mappers.getMapper(ToolCallSpringAiMapper.class)));
   }
 
   static OllamaModelCatalogAdapter catalogAdapter(String baseUrl) {

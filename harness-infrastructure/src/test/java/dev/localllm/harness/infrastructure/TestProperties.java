@@ -12,6 +12,9 @@ public final class TestProperties {
   /** Context window configured in tests. */
   public static final int NUM_CTX = 65536;
 
+  /** Tool output limit configured in tests. */
+  public static final int MAX_OUTPUT_CHARS = 8000;
+
   private TestProperties() {
   }
 
@@ -27,6 +30,8 @@ public final class TestProperties {
     return new HarnessProperties("qwen3.5:27b", ollamaBaseUrl, home,
         new HarnessProperties.Thinking(true, HarnessProperties.ThinkingDisplay.STREAM,
             persistThinking),
-        new HarnessProperties.Context(NUM_CTX, 0.8, 4, 3.5));
+        new HarnessProperties.Context(NUM_CTX, 0.8, 0.25, 3.5),
+        new HarnessProperties.Agent(25, 2),
+        new HarnessProperties.Tools(MAX_OUTPUT_CHARS));
   }
 }

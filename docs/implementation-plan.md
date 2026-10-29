@@ -23,7 +23,7 @@ Functional Requirements спецификации. Выполненные зад�
 |---|---|---|---|
 | M1 | Каркас и чат-REPL со стримингом и thinking | — | ✅ |
 | M2 | Сессии в JSONL, контекст, компакция, `@`-файлы | M1 | ✅ |
-| M3 | Агентный цикл, нативный tool calling, инструменты чтения | M2 | |
+| M3 | Агентный цикл, нативный tool calling, инструменты чтения | M2 | ✅ |
 | M4 | Запись файлов, shell, HTTP, запасной текстовый протокол | M3 | |
 | M5 | MCP-клиент (stdio + Streamable HTTP) | M3 | |
 | M6 | Native image (по ADR с замером) | M1–M5 | |
@@ -127,48 +127,87 @@ M4 и M5 независимы друг от друга и могут идти п
 
 ---
 
-## M3 — агентный цикл и инструменты чтения
+## M3 — агентный цикл и инструменты чтения ✅
 
 **Цель:** `/mode agent` — модель сама читает код через нативный tool calling `qwen3.5`.
 Требования FR 10, 11 (`read_file`, `list_dir`, `glob`, `grep`), 13, 14.
 
 ### Задачи
 
-0. **Компакция по бюджету токенов** (перенесено из M2): `ConversationCompactor` оставляет хвост
-   не по числу сообщений, а по доле окна; содержимое `<file>` в сжимаемой части заменяется
-   ссылкой `@путь`.
-1. **Модели и порты:** `ToolSpec`, `ToolCall`, `ToolResult`; `ToolExecutorPort`
-   (`available()`, `execute(ToolCall)`); расширить `ChatModelPort` ответом с `toolCalls`;
-   `RunAgentTurnUseCase` + `RunAgentTurnCommand`.
-2. **`AgentLoopService`:** цикл до ответа без вызовов; лимиты `max-iterations` (25) и
-   `max-parse-failures` (2); результаты инструментов в историю; отмена между шагами.
-3. **Нативный режим** (`out/ollama/toolcall`): `NativeToolCallMode` — `toolCallbacks` в
-   `OllamaChatOptions` с `internalToolExecutionEnabled(false)`, разбор
-   `AssistantMessage.getToolCalls()`, результаты как `ToolResponseMessage`; маппер
-   `ToolCallSpringAiMapper`.
-4. **Инструменты** (`out/tools`): `FileTools` с `@Tool` (`read_file` с offset/limit и номерами
-   строк, `list_dir`, `glob`, `grep`), обрезка вывода до `max-output-chars`;
-   `SpringAiToolExecutorAdapter` — реестр `ToolCallback`.
-5. **История:** `ConversationPort` и JSONL хранят вызовы и результаты инструментов
-   (`role TOOL_RESULT`).
-6. **CLI:** `/mode chat|agent`, `/tools`, отображение `⏺ read_file(path)` + первые строки
-   результата, `--verbose` для полного вывода; `ToolErrorHandler` в `handlers/`.
-7. **Конфиг:** `harness.agent.*`, `harness.tools.max-output-chars`.
+0. ✅ **Компакция по бюджету токенов** (перенесено из M2): `ConversationCompactor` оставляет
+   дословно последние сообщения, умещающиеся в `keep-tail-share` окна (0.25), а не фиксированное
+   число; хвост никогда не начинается с результата инструмента. В транскрипте для сводки блоки
+   `<file path="…">` заменяются ссылкой `@путь`. `harness.context.keep-last-messages` удалён.
+1. ✅ **Модели и порты:** `ToolSpec`, `ToolSource`, `ToolCall`, `ToolResult`, `AgentPolicy`;
+   `Role.TOOL_RESULT`; `ChatMessage` несёт `toolCalls` / `toolCallId` / `toolName`;
+   `ChatRequest.tools`, `ChatCompletion.toolCalls`; `ToolExecutorPort`
+   (`available()`, `execute(ToolCall, Path workingDirectory)` — рабочая директория передаётся
+   инструментам через Spring AI `ToolContext`); `TurnOutputPort.onToolCall/onToolResult`;
+   `RunAgentTurnUseCase` + `RunAgentTurnCommand`, `ListToolsQuery`;
+   `AgentLimitExceededException` (200001).
+2. ✅ **`AgentLoopService`:** цикл до ответа без вызовов; лимиты `max-iterations` (25) и
+   `max-parse-failures` (2 шага подряд только с несуществующими инструментами); каждый шаг сразу
+   пишется в историю (вызовы, затем по результату на вызов); отмена через `TurnCancellation`
+   (общий с `CancelTurnService`) между инструментами, пропущенные вызовы получают результат
+   «cancelled»; системный промпт с рабочей директорией не хранится и стабилен между ходами;
+   сводка компакции вливается в него; проверка компакции между шагами. Общий код с чатом вынесен
+   в `SessionRegistrar`, `ChatCompletion.historyContent()`, `ConversationCompactor.compactIfNeeded`.
+3. ✅ **Нативный режим** (`out/ollama/toolcall`): в Spring AI 2.0.2 нет
+   `internalToolExecutionEnabled` — инструменты исполняет `ToolCallingAdvisor`, который
+   `ChatClient` регистрирует сам. `OllamaChatAdapter` отключает его через
+   `AdvisorParams.toolCallingAdvisorAutoRegister(false)`, `NativeToolCallMode` передаёт
+   определения как `DefinitionOnlyToolCallback` и собирает `tool_calls` из чанков;
+   маппер `ToolCallSpringAiMapper` (id генерируется, если Ollama его не прислала).
+4. ✅ **Инструменты** (`out/tools`): `FileTools` с `@Tool` (`read_file` с offset/limit и номерами
+   строк, `list_dir`, `glob`, `grep`; пропуск `.git`, `.gradle`, `.idea`, `node_modules`; не более
+   200 результатов), `PlainTextResultConverter` (строки без JSON-экранирования),
+   `SpringAiToolExecutorAdapter` — реестр `ToolCallbackProvider`, обрезка до `max-output-chars`,
+   ошибки инструмента → результат с `error=true`; `ToolsConfig`.
+5. ✅ **История:** `ChatMessageMemoryMapper`, `JsonlLineMapper` и `JsonlLine` хранят
+   `toolCalls` у ассистента и `role TOOL_RESULT` + `callId` / `toolName`; сравнение префикса в
+   `JsonlChatMemoryRepository` — по строкам целиком, а не только по тексту.
+6. ✅ **CLI:** `/mode chat|agent` (agent недоступен модели без `tools`, при смене на такую модель —
+   возврат в chat), `/tools [префикс]`, `--mode`, приглашение `agent›`, режим в баннере;
+   `⏺ read_file(path)` + 3 строки результата, `--verbose` — полностью с длительностью
+   (`DisplayOptions`); в неинтерактивном терминале вызовы идут в stderr; `ToolErrorHandler`;
+   подсказка `LlmErrorHandler` на «does not support tools».
+7. ✅ **Конфиг:** `harness.agent.max-iterations`, `harness.agent.max-parse-failures`,
+   `harness.tools.max-output-chars`, `harness.context.keep-tail-share`.
 
 ### Тесты
 
-- Unit: `AgentLoopService` на фейках (без вызовов, цепочка N вызовов, лимит итераций, отмена).
-- WireMock: ответ с `message.tool_calls` маппится в `ToolCall`, в запросе есть `tools`; учесть
-  задержку стрима на один чанк (Open Questions спеки).
-- `FileTools` на `@TempDir`.
-- Live: «прочитай `Calc.java` и скажи, что делает `add`» → был вызван `read_file`.
+- ✅ Unit: `AgentLoopService` на фейках — без вызовов, цепочка вызовов, сумма токенов, лимит
+  итераций, лимит неизвестных инструментов и его сброс, отмена во время инструмента и стрима,
+  сброс отмены, ошибка первого шага, сводка в системном промпте, thinking, компакция между
+  шагами; компактор — хвост по токенам, `@путь` вместо файла, хвост не начинается с результата.
+- ✅ WireMock: `message.tool_calls` маппится в `ToolCall` и не исполняется Spring AI, id
+  генерируется, в запросе есть `tools`, история с `tool_calls` и `role: tool`.
+- ✅ `FileTools` на `@TempDir` через реестр: схемы, offset/limit, ошибки, бинарный файл, обрезка,
+  glob с `**/`, grep с фильтром.
+- ✅ JSONL: вызовы и результаты переживают запись/чтение; изменённый результат перезаписывает файл.
+- ✅ CLI: `/mode`, `/tools`, `--mode agent -p`, лимит итераций; консоль — превью, verbose, stderr.
+- ✅ Live (`AgentLiveIT`): «прочитай `Calc.java` и скажи, что делает `add`» → вызван `read_file`.
 
-### Риски
+### Ручной сценарий
 
-- Агрегация `tool_calls` в стриме при `internalToolExecutionEnabled=false`; запасной вариант —
-  блокирующий `call()` на шагах с инструментами.
-- Время шага с thinking (~20 ток/с) — замерить и решить, выключать ли thinking в `agent` по
-  умолчанию.
+- ✅ `bin/harness --mode agent -p …` (вызовы в stderr, ответ в stdout), `--resume` с историей
+  инструментов, в псевдотерминале — `/mode`, `/tools`, агентный ход, Ctrl+C посреди шага.
+- Проверить в настоящем терминале: цвета `⏺`/`⎿`, Ctrl+C во время долгого `grep`.
+
+### Замеры и решения
+
+- Стрим с `tool_calls` работает: Spring AI склеивает чанки вызова до `done`, блокирующий `call()`
+  не понадобился.
+- Время агентного хода «прочитай файл и ответь» на прогретой модели: с thinking 8.5 с, без —
+  7.0 с (холодный старт: 21.3 с против 9.7 с). Thinking в `agent` остаётся включённым по
+  умолчанию, выключается `/think off` или `--no-think`.
+
+### Найдено и перенесено
+
+- `/context` считает только историю: системный промпт агента и схемы инструментов (несколько
+  сотен токенов) в оценку не входят.
+- Компакция выполняется между шагами агента только по порогу; одиночный результат инструмента
+  ограничен `max-output-chars`, поэтому окно им не переполняется.
 
 ---
 

@@ -121,16 +121,18 @@ class SessionServicesTest {
   }
 
   @Test
-  void cancelTurn_Always_CancelsActiveStream() {
+  void cancelTurn_Always_CancelsActiveStreamAndRequestsLoopStop() {
     // Arrange
     FakeChatModelPort chatModel = new FakeChatModelPort();
-    CancelTurnService service = new CancelTurnService(chatModel);
+    TurnCancellation cancellation = new TurnCancellation();
+    CancelTurnService service = new CancelTurnService(chatModel, cancellation);
 
     // Act
     service.execute(new CancelTurnCommand(SessionId.newId()));
 
     // Assert
     assertThat(chatModel.cancelCount()).isEqualTo(1);
+    assertThat(cancellation.isRequested()).isTrue();
   }
 
   private SessionInfo register(Path cwd, String title, String createdAt) {

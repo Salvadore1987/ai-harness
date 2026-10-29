@@ -1,6 +1,8 @@
 package dev.localllm.harness.application.service;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
@@ -22,6 +24,8 @@ import dev.localllm.harness.application.model.ContextPolicy;
 import dev.localllm.harness.application.model.ContextUsage;
 import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.SessionId;
+import dev.localllm.harness.application.model.ToolCall;
+import dev.localllm.harness.application.model.ToolResult;
 import dev.localllm.harness.application.model.TurnStatus;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ContextServicesTest {
 
   private static final String MODEL = "qwen3.5:27b";
-  private static final ContextPolicy POLICY = new ContextPolicy(0.8, 2, 4.0);
+  private static final ContextPolicy POLICY = new ContextPolicy(0.8, 0.01, 4.0);
 
   private final TurnApplicationMapper mapper = Mappers.getMapper(TurnApplicationMapper.class);
   private final SessionId sessionId = SessionId.newId();
@@ -38,7 +42,7 @@ class ContextServicesTest {
   private final FixedContextBudgetPort budget = new FixedContextBudgetPort(1000);
   private final ContextMeter meter = new ContextMeter(budget, POLICY);
   private final ConversationCompactor compactor =
-      new ConversationCompactor(conversation, chatModel, meter, POLICY);
+      new ConversationCompactor(conversation, chatModel, meter);
 
   @Test
   void estimateTokens_WithMessages_DividesCharsAndAddsOverheadPerMessage() {
@@ -144,6 +148,72 @@ class ContextServicesTest {
     // Assert
     assertThat(result.compacted()).isFalse();
     assertThat(chatModel.requests()).isEmpty();
+  }
+
+  @Test
+  void compact_WithLargeOldAttachment_SendsFileReferenceInsteadOfContent() {
+    // Arrange
+    conversation.append(sessionId, new ChatMessage(Role.USER,
+        "look at @Calc.java\n\n<file path=\"Calc.java\">\n" + "x".repeat(2000) + "\n</file>"));
+    seed("a1", "q2", "a2");
+    chatModel.respondWith(new ChatChunk.Content("s"));
+
+    // Act
+    CompactionOutcome outcome = compactor.compact(sessionId, MODEL);
+
+    // Assert
+    String transcript = chatModel.requests().getFirst().messages().getLast().content();
+    assertThat(transcript).startsWith("user: look at @Calc.java\n\n@Calc.java")
+        .doesNotContain("xxx");
+    assertThat(outcome.tokensAfter()).isLessThan(outcome.tokensBefore() / 10);
+  }
+
+  @Test
+  void compact_WithLongLastMessage_KeepsNothingVerbatim() {
+    // Arrange
+    seed("q1", "a1", "q2", "a".repeat(400));
+    chatModel.respondWith(new ChatChunk.Content("s"));
+
+    // Act
+    compactor.compact(sessionId, MODEL);
+
+    // Assert
+    assertThat(conversation.history(sessionId))
+        .containsExactly(new ChatMessage(Role.SYSTEM, "s"));
+  }
+
+  @Test
+  void compact_WhenTailWouldStartWithToolResult_MovesResultToSummary() {
+    // Arrange
+    ToolCall call = new ToolCall("c1", "read_file", "{\"path\":\"A.java\"}");
+    conversation.append(sessionId, new ChatMessage(Role.USER, "q".repeat(40)));
+    conversation.append(sessionId, ChatMessage.assistant("a".repeat(40), List.of(call)));
+    conversation.append(sessionId, ChatMessage.toolResult(
+        new ToolResult("c1", "read_file", "r", false, false, Duration.ZERO)));
+    conversation.append(sessionId, new ChatMessage(Role.ASSISTANT, "d"));
+    chatModel.respondWith(new ChatChunk.Content("s"));
+
+    // Act
+    compactor.compact(sessionId, MODEL);
+
+    // Assert
+    assertThat(conversation.history(sessionId)).extracting(ChatMessage::role)
+        .containsExactly(Role.SYSTEM, Role.ASSISTANT);
+    assertThat(chatModel.requests().getFirst().messages().getLast().content())
+        .contains("[called read_file {\"path\":\"A.java\"}]")
+        .contains("tool_result read_file: r");
+  }
+
+  @Test
+  void compactIfNeeded_BelowThreshold_ReturnsEmpty() {
+    // Arrange
+    seed("q1", "a1");
+
+    // Act
+    Optional<CompactionOutcome> outcome = compactor.compactIfNeeded(sessionId, MODEL);
+
+    // Assert
+    assertThat(outcome).isEmpty();
   }
 
   @Test

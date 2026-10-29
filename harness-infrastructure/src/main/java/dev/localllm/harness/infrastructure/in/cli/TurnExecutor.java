@@ -10,12 +10,14 @@ import org.springframework.stereotype.Component;
 
 import dev.localllm.harness.application.dto.result.TurnResult;
 import dev.localllm.harness.application.port.in.CancelTurnUseCase;
+import dev.localllm.harness.application.port.in.RunAgentTurnUseCase;
 import dev.localllm.harness.application.port.in.SendMessageUseCase;
 import dev.localllm.harness.infrastructure.in.cli.handlers.CliErrorReporter;
 import dev.localllm.harness.infrastructure.in.cli.mapper.ReplCliMapper;
 
 /**
- * Runs one chat turn from the CLI: Ctrl+C cancels the generation, failures are reported.
+ * Runs one turn from the CLI as a chat or an agent turn, depending on the mode: Ctrl+C cancels
+ * the generation, failures are reported.
  */
 @Component
 public class TurnExecutor {
@@ -25,6 +27,7 @@ public class TurnExecutor {
       AttributedStyle.DEFAULT.foreground(AttributedStyle.YELLOW);
 
   private final SendMessageUseCase sendMessageUseCase;
+  private final RunAgentTurnUseCase runAgentTurnUseCase;
   private final CancelTurnUseCase cancelTurnUseCase;
   private final ReplCliMapper mapper;
   private final FileMentionExpander fileMentionExpander;
@@ -34,7 +37,8 @@ public class TurnExecutor {
   /**
    * Creates the executor.
    *
-   * @param sendMessageUseCase runs the turn
+   * @param sendMessageUseCase runs a chat turn
+   * @param runAgentTurnUseCase runs an agent turn
    * @param cancelTurnUseCase cancels the running turn on Ctrl+C
    * @param mapper builds commands from the CLI state
    * @param fileMentionExpander attaches files mentioned as {@code @path}
@@ -43,12 +47,14 @@ public class TurnExecutor {
    */
   public TurnExecutor(
       SendMessageUseCase sendMessageUseCase,
+      RunAgentTurnUseCase runAgentTurnUseCase,
       CancelTurnUseCase cancelTurnUseCase,
       ReplCliMapper mapper,
       FileMentionExpander fileMentionExpander,
       CliErrorReporter errorReporter,
       Terminal terminal) {
     this.sendMessageUseCase = sendMessageUseCase;
+    this.runAgentTurnUseCase = runAgentTurnUseCase;
     this.cancelTurnUseCase = cancelTurnUseCase;
     this.mapper = mapper;
     this.fileMentionExpander = fileMentionExpander;
@@ -70,8 +76,9 @@ public class TurnExecutor {
       FileMentionExpander.Expansion expansion =
           fileMentionExpander.expand(text, session.getWorkingDirectory());
       expansion.problems().forEach(problem -> printStyled("⚠ " + problem, WARNING_STYLE));
-      TurnResult result = sendMessageUseCase.execute(
-          mapper.toSendMessageCommand(session, expansion.text()));
+      TurnResult result = session.getMode() == ReplMode.AGENT
+          ? runAgentTurnUseCase.execute(mapper.toRunAgentTurnCommand(session, expansion.text()))
+          : sendMessageUseCase.execute(mapper.toSendMessageCommand(session, expansion.text()));
       if (session.isVerbose()) {
         printStats(result);
       }

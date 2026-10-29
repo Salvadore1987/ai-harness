@@ -10,6 +10,7 @@ import dev.localllm.harness.application.dto.result.ModelSummaryResult;
 import dev.localllm.harness.application.dto.result.SessionResult;
 import dev.localllm.harness.application.dto.result.SessionSummaryResult;
 import dev.localllm.harness.application.dto.result.ThinkingToggleResult;
+import dev.localllm.harness.application.dto.result.ToolSummaryResult;
 import dev.localllm.harness.application.dto.result.TurnResult;
 import dev.localllm.harness.application.model.ChatCompletion;
 import dev.localllm.harness.application.model.CompactionOutcome;
@@ -18,6 +19,7 @@ import dev.localllm.harness.application.model.ModelCapability;
 import dev.localllm.harness.application.model.ModelInfo;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.SessionInfo;
+import dev.localllm.harness.application.model.ToolSpec;
 
 /**
  * Converts core models into use case results.
@@ -89,4 +91,12 @@ public interface TurnApplicationMapper {
    * @return usage result
    */
   ContextUsageResult toContextUsageResult(ContextUsage usage);
+
+  /**
+   * Converts a tool description into its summary.
+   *
+   * @param tool tool description
+   * @return tool summary
+   */
+  ToolSummaryResult toToolSummary(ToolSpec tool);
 }

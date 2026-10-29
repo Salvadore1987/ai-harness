@@ -9,12 +9,15 @@ import org.mapstruct.factory.Mappers;
 import dev.localllm.harness.application.fixture.FakeChatModelPort;
 import dev.localllm.harness.application.fixture.FakeModelCatalogPort;
 import dev.localllm.harness.application.fixture.FakeSessionCatalogPort;
+import dev.localllm.harness.application.fixture.FakeToolExecutorPort;
 import dev.localllm.harness.application.fixture.FixedContextBudgetPort;
 import dev.localllm.harness.application.fixture.InMemoryConversationPort;
 import dev.localllm.harness.application.fixture.RecordingTurnOutputPort;
 import dev.localllm.harness.application.mapper.TurnApplicationMapper;
+import dev.localllm.harness.application.model.AgentPolicy;
 import dev.localllm.harness.application.model.ContextPolicy;
 import dev.localllm.harness.application.model.SessionId;
+import dev.localllm.harness.application.service.AgentLoopService;
 import dev.localllm.harness.application.service.CancelTurnService;
 import dev.localllm.harness.application.service.CompactSessionService;
 import dev.localllm.harness.application.service.ContextMeter;
@@ -22,19 +25,24 @@ import dev.localllm.harness.application.service.ConversationCompactor;
 import dev.localllm.harness.application.service.GetContextUsageQueryService;
 import dev.localllm.harness.application.service.ListModelsQueryService;
 import dev.localllm.harness.application.service.ListSessionsQueryService;
+import dev.localllm.harness.application.service.ListToolsQueryService;
 import dev.localllm.harness.application.service.ResumeSessionService;
 import dev.localllm.harness.application.service.SendMessageService;
+import dev.localllm.harness.application.service.SessionRegistrar;
 import dev.localllm.harness.application.service.StartSessionService;
 import dev.localllm.harness.application.service.SwitchModelService;
 import dev.localllm.harness.application.service.ToggleThinkingService;
+import dev.localllm.harness.application.service.TurnCancellation;
 import dev.localllm.harness.infrastructure.TestProperties;
 import dev.localllm.harness.infrastructure.TestTerminals;
+import dev.localllm.harness.infrastructure.config.DisplayOptions;
 import dev.localllm.harness.infrastructure.config.HarnessProperties;
 import dev.localllm.harness.infrastructure.in.cli.handlers.CliErrorReporter;
 import dev.localllm.harness.infrastructure.in.cli.handlers.FallbackErrorHandler;
 import dev.localllm.harness.infrastructure.in.cli.handlers.LlmErrorHandler;
 import dev.localllm.harness.infrastructure.in.cli.handlers.ModelErrorHandler;
 import dev.localllm.harness.infrastructure.in.cli.handlers.SessionErrorHandler;
+import dev.localllm.harness.infrastructure.in.cli.handlers.ToolErrorHandler;
 import dev.localllm.harness.infrastructure.in.cli.mapper.ReplCliMapper;
 
 /**
@@ -43,7 +51,7 @@ import dev.localllm.harness.infrastructure.in.cli.mapper.ReplCliMapper;
 final class CliTestContext {
 
   static final Path CWD = Path.of("/work/project");
-  static final ContextPolicy POLICY = new ContextPolicy(0.8, 2, 4.0);
+  static final ContextPolicy POLICY = new ContextPolicy(0.8, 0.25, 4.0);
 
   final TestTerminals.Captured terminal = TestTerminals.interactive();
   final FakeChatModelPort chatModel = new FakeChatModelPort();
@@ -51,12 +59,15 @@ final class CliTestContext {
   final FakeSessionCatalogPort catalog = new FakeSessionCatalogPort();
   final FixedContextBudgetPort budget = new FixedContextBudgetPort(65536);
   final RecordingTurnOutputPort output = new RecordingTurnOutputPort();
+  final FakeToolExecutorPort tools = new FakeToolExecutorPort("read_file", "glob");
+  final TurnCancellation cancellation = new TurnCancellation();
+  final DisplayOptions displayOptions = new DisplayOptions();
   final FakeModelCatalogPort models =
       new FakeModelCatalogPort(FakeModelCatalogPort.QWEN, FakeModelCatalogPort.CODELLAMA);
   final ReplCliMapper mapper = Mappers.getMapper(ReplCliMapper.class);
   final CliErrorReporter reporter = new CliErrorReporter(
       List.of(new LlmErrorHandler(), new ModelErrorHandler(), new SessionErrorHandler(),
-          new FallbackErrorHandler()),
+          new ToolErrorHandler(), new FallbackErrorHandler()),
       terminal.terminal());
   final HarnessProperties properties =
       TestProperties.create(Path.of("build/harness-home"), "http://localhost:11434", false);
@@ -65,11 +76,12 @@ final class CliTestContext {
       Mappers.getMapper(TurnApplicationMapper.class);
   private final ContextMeter meter = new ContextMeter(budget, POLICY);
   private final ConversationCompactor compactor =
-      new ConversationCompactor(conversation, chatModel, meter, POLICY);
+      new ConversationCompactor(conversation, chatModel, meter);
+  private final SessionRegistrar registrar = new SessionRegistrar(catalog, Clock.systemUTC());
 
   SlashCommandDispatcher dispatcher() {
-    return new SlashCommandDispatcher(sessionCommands(), modelCommands(), reporter,
-        terminal.terminal());
+    return new SlashCommandDispatcher(sessionCommands(), modelCommands(), agentCommands(),
+        reporter, terminal.terminal());
   }
 
   SessionSlashCommands sessionCommands() {
@@ -90,11 +102,18 @@ final class CliTestContext {
         mapper, terminal.terminal());
   }
 
+  AgentSlashCommands agentCommands() {
+    return new AgentSlashCommands(new ListToolsQueryService(tools, applicationMapper), mapper,
+        terminal.terminal());
+  }
+
   TurnExecutor turnExecutor() {
     return new TurnExecutor(
-        new SendMessageService(conversation, catalog, chatModel, output, meter, compactor,
-            applicationMapper, Clock.systemUTC()),
-        new CancelTurnService(chatModel),
+        new SendMessageService(conversation, registrar, chatModel, output, compactor,
+            applicationMapper),
+        new AgentLoopService(conversation, registrar, chatModel, tools, output, compactor,
+            cancellation, new AgentPolicy(25, 2), applicationMapper),
+        new CancelTurnService(chatModel, cancellation),
         mapper, new FileMentionExpander(), reporter, terminal.terminal());
   }
 
@@ -105,7 +124,7 @@ final class CliTestContext {
         new SwitchModelService(models, applicationMapper),
         mapper, turnExecutor(),
         new ReplRunner(terminal.terminal(), turnExecutor(), dispatcher(), properties),
-        reporter, properties);
+        reporter, properties, displayOptions);
   }
 
   ReplSession session() {

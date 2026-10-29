@@ -29,5 +29,10 @@ harness:
   context:
     num-ctx: ${HARNESS_NUM_CTX:65536}
     compact-threshold: ${HARNESS_COMPACT_THRESHOLD:0.8}
-    keep-last-messages: ${HARNESS_KEEP_LAST_MESSAGES:4}
+    keep-tail-share: ${HARNESS_KEEP_TAIL_SHARE:0.25}
     chars-per-token: ${HARNESS_CHARS_PER_TOKEN:3.5}
+  agent:
+    max-iterations: ${HARNESS_AGENT_MAX_ITERATIONS:25}
+    max-parse-failures: ${HARNESS_AGENT_MAX_PARSE_FAILURES:2}
+  tools:
+    max-output-chars: ${HARNESS_TOOLS_MAX_OUTPUT_CHARS:8000}
