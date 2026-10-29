@@ -17,6 +17,7 @@ pmd = "7.28.0"
 jacoco = "0.8.16"
 archunit = "1.5.1"
 wiremock = "3.13.2"
+graalvm-native = "1.1.14"
 
 [libraries]
 spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
@@ -32,6 +33,7 @@ spring-ai-starter-model-ollama = { module = "org.springframework.ai:spring-ai-st
 spring-ai-starter-mcp-client = { module = "org.springframework.ai:spring-ai-starter-mcp-client" }
 
 picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
+picocli-codegen = { module = "info.picocli:picocli-codegen", version.ref = "picocli" }
 jline = { module = "org.jline:jline", version.ref = "jline" }
 mapstruct = { module = "org.mapstruct:mapstruct", version.ref = "mapstruct" }
 mapstruct-processor = { module = "org.mapstruct:mapstruct-processor", version.ref = "mapstruct" }
@@ -50,3 +52,4 @@ wiremock-standalone = { module = "org.wiremock:wiremock-standalone", version.ref
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
 errorprone = { id = "net.ltgt.errorprone", version.ref = "errorprone-gradle" }
 spotbugs = { id = "com.github.spotbugs", version.ref = "spotbugs-gradle" }
+graalvm-native = { id = "org.graalvm.buildtools.native", version.ref = "graalvm-native" }

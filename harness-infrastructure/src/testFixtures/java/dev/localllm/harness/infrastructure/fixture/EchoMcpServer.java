@@ -1,4 +1,4 @@
-package dev.localllm.harness.infrastructure.out.mcp;
+package dev.localllm.harness.infrastructure.fixture;
 
 import java.util.List;
 import java.util.Map;
@@ -11,7 +11,7 @@ import io.modelcontextprotocol.spec.McpSchema;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Stdio MCP server started as a separate process by the tests.
+ * Stdio MCP server started as a separate process by the tests and the native smoke test.
  *
  * <p>Tools: {@code echo} returns its {@code text} as two text items, {@code fail} always
  * returns an error result. The process runs until the client closes it.

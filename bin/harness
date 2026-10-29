@@ -1,27 +1,14 @@
 #!/usr/bin/env bash
-# Launcher for the harness CLI. Build the jar first: ./gradlew :harness-bootstrap:bootJar
+# Launcher for the harness CLI, a native executable (ADR-002).
+# Build it first: ./gradlew :harness-bootstrap:nativeCompile
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-JAR="${HARNESS_JAR:-$SCRIPT_DIR/../harness-bootstrap/build/libs/harness.jar}"
+BINARY="${HARNESS_BINARY:-$SCRIPT_DIR/../harness-bootstrap/build/native/nativeCompile/harness}"
 
-if [[ ! -f "$JAR" ]]; then
-  echo "harness.jar not found at $JAR; run ./gradlew :harness-bootstrap:bootJar" >&2
+if [[ ! -x "$BINARY" ]]; then
+  echo "harness executable not found at $BINARY; run ./gradlew :harness-bootstrap:nativeCompile" >&2
   exit 1
 fi
 
-if [[ -n "${HARNESS_JAVA:-}" ]]; then
-  JAVA="$HARNESS_JAVA"
-elif [[ -x /usr/libexec/java_home ]] && JAVA_25_HOME="$(/usr/libexec/java_home -v 25 2>/dev/null)"; then
-  JAVA="$JAVA_25_HOME/bin/java"
-elif [[ -n "${JAVA_HOME:-}" ]]; then
-  JAVA="$JAVA_HOME/bin/java"
-else
-  JAVA="java"
-fi
-
-exec "$JAVA" \
-  --enable-native-access=ALL-UNNAMED \
-  -XX:TieredStopAtLevel=1 \
-  -XX:+UseSerialGC \
-  -jar "$JAR" "$@"
+exec "$BINARY" "$@"

@@ -16,6 +16,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import tools.jackson.databind.json.JsonMapper;
 
 import dev.localllm.harness.infrastructure.TestTerminals;
+import dev.localllm.harness.infrastructure.fixture.EchoMcpServer;
 
 /**
  * MCP clients and connectors for tests.
