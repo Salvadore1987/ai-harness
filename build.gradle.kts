@@ -71,7 +71,7 @@ subprojects {
             if (liveTags != null) {
                 includeTags(liveTags)
             } else {
-                excludeTags("live")
+                excludeTags("live", "native")
             }
         }
         jvmArgs("--enable-native-access=ALL-UNNAMED", "-XX:+EnableDynamicAgentLoading")

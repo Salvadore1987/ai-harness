@@ -1,30 +1,38 @@
 # Harness
 
 Локальный AI-агент для терминала на Java 25, Spring Boot 4.1 и Spring AI 2.0 поверх Ollama.
-Реализованы этапы M1–M4: чат-REPL со стримингом, режимом размышлений, отменой по Ctrl+C,
+Реализованы этапы M1–M6: чат-REPL со стримингом, режимом размышлений, отменой по Ctrl+C,
 режимом одиночного запроса, сессиями в JSONL с продолжением, автоматической компакцией истории,
 подстановкой файлов через `@путь` и агентным режимом, в котором модель сама читает и правит код,
 выполняет команды и скачивает страницы (`read_file`, `list_dir`, `glob`, `grep`, `write_file`,
 `edit_file`, `run_command`, `http_fetch`) через нативный tool calling или текстовый протокол для
-моделей без него. План этапов — [docs/implementation-plan.md](docs/implementation-plan.md). Спецификация — [docs/java-ai-harness.md](docs/java-ai-harness.md),
-архитектурные решения — [docs/adr/ADR-001-architecture.md](docs/adr/ADR-001-architecture.md).
+моделей без него, с инструментами внешних MCP-серверов. Собирается в GraalVM native image и
+стартует за 0.05–0.15 с. План этапов — [docs/implementation-plan.md](docs/implementation-plan.md). Спецификация — [docs/java-ai-harness.md](docs/java-ai-harness.md),
+архитектурные решения — [ADR-001](docs/adr/ADR-001-architecture.md) (архитектура),
+[ADR-002](docs/adr/ADR-002-native-image.md) (native image).
 
 ## Требования
 
-- JDK 25 (`/usr/libexec/java_home -v 25` находит Homebrew-сборку)
+- GraalVM 25 (Oracle GraalVM или GraalVM CE) — для сборки бинарника; Gradle находит его как
+  toolchain с `native-image`. Для разработки и тестов достаточно любого JDK 25
 - Ollama с моделью: `ollama pull qwen3.5:27b`
 
 ## Сборка и запуск
 
 ```bash
-./gradlew build                       # компиляция, NullAway, тесты, Checkstyle/PMD/SpotBugs, JaCoCo
-./gradlew :harness-bootstrap:bootJar  # build/libs/harness.jar
-bin/harness                           # REPL
+./gradlew build                             # компиляция, NullAway, тесты, Checkstyle/PMD/SpotBugs, JaCoCo
+./gradlew :harness-bootstrap:nativeCompile  # бинарник, около 70 с и до 7 ГБ памяти
+bin/harness                                 # REPL
 bin/harness -p "Объясни, что такое CAP" # один запрос, ответ в stdout, код выхода 0/1
 bin/harness --mode agent -p "Что делает Calc.add?" # агент читает файлы сам
 bin/harness --mode agent -p "Исправь Calc.add и запусти тесты" # правит файлы и выполняет команды
 ln -s "$PWD/bin/harness" ~/.local/bin/harness
 ```
+
+Для разработки можно запускать на JVM без пересборки образа:
+`./gradlew :harness-bootstrap:bootJar && java --enable-native-access=ALL-UNNAMED -jar
+harness-bootstrap/build/libs/harness.jar`. Первый запуск свежесобранного бинарника на macOS
+дольше (около 2 с) — система проверяет новый исполняемый файл.
 
 Опции: `--model <тег>`, `--cwd <каталог>`, `--resume [ID]` (последняя сессия директории или
 указанная), `--mode chat|agent`, `--no-think`, `--verbose` (статистика токенов и полный вывод
@@ -130,6 +138,7 @@ harness:
 ```bash
 ./gradlew test                    # unit + WireMock + ArchUnit, без Ollama
 ./gradlew test -PincludeTags=live # против локальной Ollama с qwen3.5:27b
+./gradlew :harness-bootstrap:test -PincludeTags=native # собирает образ и проверяет бинарник
 ```
 
 ## Модули
@@ -138,4 +147,4 @@ harness:
 |---|---|
 | `harness-application` | Ядро без фреймворков: модели, порты, use case'ы, MapStruct-маппер |
 | `harness-infrastructure` | Адаптеры: CLI (Picocli + JLine), Ollama (Spring AI), консоль, память, инструменты, MCP-клиент |
-| `harness-bootstrap` | `HarnessApplication`, `BeanConfig`, `application.yml`, Log4j2, `bootJar` |
+| `harness-bootstrap` | `HarnessApplication`, `BeanConfig`, `application.yml`, Log4j2, native image (`nativeCompile`), `bootJar` |

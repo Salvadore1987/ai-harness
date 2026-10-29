@@ -13,7 +13,8 @@ Functional Requirements спецификации. Выполненные зад�
 - **Definition of Done этапа:**
   1. `./gradlew clean check` зелёный (NullAway, Checkstyle, PMD, SpotBugs, ArchUnit, JaCoCo:
      `application` ≥ 80 %, `infrastructure` ≥ 50 %, общий ≥ 60 %);
-  2. `./gradlew test -PincludeTags=live` зелёный против локальной `qwen3.5:27b`;
+  2. `./gradlew test -PincludeTags=live` зелёный против локальной `qwen3.5:27b`; с M6 также
+     `./gradlew :harness-bootstrap:test -PincludeTags=native` (собирает образ, ADR-002);
   3. ручной сценарий этапа пройден в настоящем терминале;
   4. спецификация, README и при необходимости ADR обновлены; этап отмечен ✅ в спецификации.
 
@@ -26,7 +27,7 @@ Functional Requirements спецификации. Выполненные зад�
 | M3 | Агентный цикл, нативный tool calling, инструменты чтения | M2 | ✅ |
 | M4 | Запись файлов, shell, HTTP, запасной текстовый протокол | M3 | ✅ |
 | M5 | MCP-клиент (stdio + Streamable HTTP) | M3 | ✅ |
-| M6 | Native image (по ADR с замером) | M1–M5 | |
+| M6 | Native image (по ADR с замером) | M1–M5 | ✅ |
 
 M4 и M5 независимы друг от друга и могут идти параллельно после M3.
 
@@ -380,22 +381,70 @@ M4 и M5 независимы друг от друга и могут идти п
 
 ---
 
-## M6 — native image
+## M6 — native image ✅
 
 **Цель:** решить на цифрах, нужен ли native, и при положительном решении собрать его.
 
 ### Задачи
 
-1. Замер старта: JVM, JVM + CDS/AOT-кэш, native. Оформить ADR-002 (правило 6.16 стандарта).
-2. При решении «да»: `org.graalvm.buildtools.native`, GraalVM 25, `RuntimeHints` для JLine (FFM),
-   MapStruct `*MapperImpl`, `@Tool`-методов, MCP stdio; `nativeTest` в CI.
-3. При решении «нет»: включить CDS в `bin/harness` и закрыть этап.
+1. ✅ Замер старта (медиана 10 запусков, `--version` / REPL до `/exit`): fat jar 1.83 / 2.49 с,
+   распакованный jar 1.40 / 1.86 с, + CDS 0.99 / 1.37 с, + AOT-кэш JDK 25 0.88 / 1.23 с, native
+   0.05 / 0.07 с; RSS 251 МБ против 105 МБ. [ADR-002](adr/ADR-002-native-image.md): **только
+   native**, JVM-запуск — для разработки без CDS и AOT-кэша.
+2. ✅ `org.graalvm.buildtools.native` 1.1.14 (из BOM Boot) и `org.springframework.boot.aot`,
+   GraalVM 25.0.4 через toolchain `nativeImageCapable`. Boot-плагин не добавил результат
+   `processAot` в classpath образа и не нашёл классы bootstrap при выключенном `jar` — оба
+   прописаны явно (`jar` с классификатором `plain`). Checkstyle/PMD/SpotBugs не проверяют
+   сгенерированный AOT-код.
+3. ✅ Reachability metadata: `NativeHintsConfig` (records `HarnessProperties` для Hibernate
+   Validator, `@Tool`-классы и `PlainTextResultConverter`, DTO Jackson через
+   `BindingReflectionHintsRegistrar`) и `picocli-codegen` для команд picocli. Хинты для
+   MapStruct и MCP stdio не понадобились: `*MapperImpl` — бины, их обрабатывает Spring AOT, MCP SDK
+   и JLine несут свою metadata. `--enable-native-access=ALL-UNNAMED` — аргумент сборки.
+4. ✅ JLine: провайдер по умолчанию в native (и явный список провайдеров) доходит до `exec`, а тот
+   запускает `stty` — ~300 мс. `TerminalConfig` задаёт один провайдер FFM; это ускорило и JVM
+   (fat jar ≈2.2 → 1.83 с).
+5. ✅ `bin/harness` запускает бинарник (`HARNESS_BINARY` переопределяет путь).
+6. ✅ Вместо `nativeTest` — `NativeImageSmokeIT` (тег `native`, сборка образа — зависимость
+   задачи): Mockito и WireMock внутри образа потребовали бы своей metadata.
+
+### Тесты
+
+- ✅ `NativeImageSmokeIT` (7 сценариев, ~3 с на готовом образе): `--version` быстрее секунды
+  (после прогревочного запуска), slash-команды REPL с MCP-инструментами в `/tools`, чат в `-p` с
+  записью сессии, агентный ход с `read_file` и `mcp__echo__echo` (результаты уходят модели),
+  `text-json`, `/compact` + `--resume`, недоступная Ollama → `✗` и ненулевой код; в выводе нет
+  `Missing*Registration`, `UnsupportedFeatureError` и исключений.
+- ✅ `EchoMcpServer` перенесён в test fixtures `harness-infrastructure` — его запускает и
+  смоук-тест.
+
+### Ручной сценарий
+
+- ✅ Native против живой `qwen3.5:27b`: чат, агент (`read_file` → `edit_file` → `run_command`,
+  файл исправлен), `--resume`, `mcp__echo__echo`, `http_fetch(https://example.com)`; REPL под
+  псевдотерминалом (`script`) — интерактивный режим JLine, 0.15 с до приглашения.
+- Проверить в настоящем терминале: цвета, Ctrl+C во время генерации, Alt+Enter, Tab-дополнение.
+
+### Замеры и решения
+
+- Сборка образа — 70 с, пик RSS 7 ГБ; бинарник 155 МБ.
+- Первый запуск свежесобранного бинарника — около 1.7 с: macOS проверяет новый исполняемый файл.
+- Spring AOT на JVM (`-Dspring.aot.enabled=true` + AOT-кэш) давал 10 % и отклонён; в native его
+  ограничения приняты: `@ConditionalOnProperty` фиксируются при сборке (ADR-002).
+
+### Найдено и перенесено
+
+- Каждый новый `@Tool`-класс, DTO Jackson и валидируемый record настроек — в `NativeHintsConfig`;
+  смоук-тест — часть Definition of Done.
+- CI: сборка образа на GraalVM 25 и тег `native` (сквозная задача).
+- Образ собирается только под платформу сборки (сейчас macOS arm64).
 
 ---
 
 ## Сквозные задачи (без привязки к этапу)
 
-- CI (GitHub Actions): `./gradlew check` на Temurin 25 без live-тестов; OWASP dependency-check.
+- CI (GitHub Actions): `./gradlew check` на Temurin 25 без live-тестов; сборка native image на
+  GraalVM 25 и `-PincludeTags=native`; OWASP dependency-check.
 - Ревизия зависимостей раз в квартал (`./gradlew dependencies`).
 - Наблюдаемость: при `--verbose` выводить prefill отдельно от генерации (нужны `prompt_eval_duration`
   и `eval_duration` из ответа Ollama).
