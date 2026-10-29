@@ -27,7 +27,8 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 /**
- * Read-only file tools: {@code read_file}, {@code list_dir}, {@code glob} and {@code grep}.
+ * File tools: {@code read_file}, {@code list_dir}, {@code glob}, {@code grep},
+ * {@code write_file} and {@code edit_file}.
  *
  * <p>Relative paths are resolved against the working directory passed in the
  * {@link ToolContext}; absolute paths are accepted as they are. Failures are thrown with a
@@ -66,7 +67,7 @@ public class FileTools {
       @ToolParam(required = false, description = "Maximum number of lines, default 2000")
       @Nullable Integer limit,
       ToolContext context) {
-    Path file = resolve(context, path);
+    Path file = ToolContexts.resolve(context, path);
     if (Files.isDirectory(file)) {
       throw new IllegalArgumentException(path + " is a directory, use list_dir");
     }
@@ -115,7 +116,7 @@ public class FileTools {
       @Nullable String path,
       ToolContext context) {
     String requested = path == null || path.isBlank() ? "." : path;
-    Path directory = resolve(context, requested);
+    Path directory = ToolContexts.resolve(context, requested);
     if (!Files.isDirectory(directory)) {
       throw new IllegalArgumentException("Directory not found: " + requested);
     }
@@ -144,7 +145,7 @@ public class FileTools {
   public String glob(
       @ToolParam(description = "Glob pattern relative to the working directory") String pattern,
       ToolContext context) {
-    Path root = workingDirectory(context);
+    Path root = ToolContexts.workingDirectory(context);
     Predicate<Path> matcher = globMatcher(pattern);
     List<String> matches = new ArrayList<>();
     walk(root, file -> {
@@ -181,10 +182,10 @@ public class FileTools {
           description = "Glob filter for file paths, for example *.java or src/**/*.kt")
       @Nullable String glob,
       ToolContext context) {
-    Path root = workingDirectory(context);
+    Path root = ToolContexts.workingDirectory(context);
     Pattern regex = Pattern.compile(pattern);
     String requested = path == null || path.isBlank() ? "." : path;
-    Path start = resolve(context, requested);
+    Path start = ToolContexts.resolve(context, requested);
     if (!Files.exists(start)) {
       throw new IllegalArgumentException("Path not found: " + requested);
     }
@@ -212,17 +213,95 @@ public class FileTools {
     return limited(matches, total[0]);
   }
 
-  private static Path workingDirectory(ToolContext context) {
-    Object value = context.getContext().get(SpringAiToolExecutorAdapter.WORKING_DIRECTORY);
-    if (value instanceof Path directory) {
-      return directory.toAbsolutePath().normalize();
+  /**
+   * Creates or overwrites a text file.
+   *
+   * @param path file path
+   * @param content full new content
+   * @param context tool context with the working directory
+   * @return what was written
+   */
+  @Tool(name = "write_file", resultConverter = PlainTextResultConverter.class, description = """
+      Create a UTF-8 text file or overwrite it completely; missing parent directories are \
+      created. For changes to an existing file prefer edit_file.""")
+  public String writeFile(
+      @ToolParam(description = "File path, relative to the working directory or absolute")
+      String path,
+      @ToolParam(description = "Full content of the file") String content,
+      ToolContext context) {
+    Path file = ToolContexts.resolve(context, path);
+    if (Files.isDirectory(file)) {
+      throw new IllegalArgumentException(path + " is a directory");
     }
-    throw new IllegalStateException("The working directory is missing from the tool context");
+    boolean existed = Files.exists(file);
+    try {
+      Path parent = file.getParent();
+      if (parent != null) {
+        Files.createDirectories(parent);
+      }
+      Files.writeString(file, content, StandardCharsets.UTF_8);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Cannot write " + path + ": " + e.getMessage(), e);
+    }
+    return String.format(Locale.ROOT, "%s %s (%d lines)",
+        existed ? "Overwrote" : "Created", path, content.lines().count());
   }
 
-  private static Path resolve(ToolContext context, String path) {
-    return workingDirectory(context).resolve(path).normalize();
+  /**
+   * Replaces a unique substring of a file.
+   *
+   * @param path file path
+   * @param oldText text to replace, must occur exactly once
+   * @param newText replacement
+   * @param context tool context with the working directory
+   * @return unified diff of the change
+   */
+  @Tool(name = "edit_file", resultConverter = PlainTextResultConverter.class, description = """
+      Replace text in a UTF-8 file. oldText must occur in the file exactly once, including \
+      whitespace and indentation: add surrounding lines to make it unique. Returns the diff.""")
+  public String editFile(
+      @ToolParam(description = "File path, relative to the working directory or absolute")
+      String path,
+      @ToolParam(description = "Exact text to replace, unique in the file") String oldText,
+      @ToolParam(description = "Replacement text, may be empty") String newText,
+      ToolContext context) {
+    if (oldText.isEmpty()) {
+      throw new IllegalArgumentException("oldText is empty; use write_file to create a file");
+    }
+    if (oldText.equals(newText)) {
+      throw new IllegalArgumentException("oldText and newText are the same");
+    }
+    Path file = ToolContexts.resolve(context, path);
+    if (!Files.isRegularFile(file)) {
+      throw new IllegalArgumentException("File not found: " + path);
+    }
+    String before;
+    try {
+      before = Files.readString(file, StandardCharsets.UTF_8);
+    } catch (CharacterCodingException e) {
+      throw new IllegalArgumentException("Not a UTF-8 text file: " + path, e);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Cannot read " + path + ": " + e.getMessage(), e);
+    }
+    int first = before.indexOf(oldText);
+    if (first < 0) {
+      throw new IllegalArgumentException("oldText not found in " + path
+          + "; read the file and copy the text exactly");
+    }
+    if (before.indexOf(oldText, first + 1) >= 0) {
+      throw new IllegalArgumentException("oldText occurs " + occurrences(before, oldText)
+          + " times in " + path + "; add surrounding lines to make it unique");
+    }
+    String after = before.substring(0, first) + newText
+        + before.substring(first + oldText.length());
+    try {
+      Files.writeString(file, after, StandardCharsets.UTF_8);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Cannot write " + path + ": " + e.getMessage(), e);
+    }
+    return "Edited " + path + "\n" + TextDiff.unified(before, after);
   }
+
 
   private static Predicate<Path> globMatcher(String pattern) {
     PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
@@ -305,6 +384,14 @@ public class FileTools {
           .append("; narrow the search]\n");
     }
     return text.toString();
+  }
+
+  private static int occurrences(String text, String part) {
+    int count = 0;
+    for (int index = text.indexOf(part); index >= 0; index = text.indexOf(part, index + 1)) {
+      count++;
+    }
+    return count;
   }
 
   private static String shorten(String line) {

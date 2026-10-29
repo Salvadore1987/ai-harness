@@ -222,6 +222,22 @@ class ConsoleTurnOutputAdapterTest {
   }
 
   @Test
+  void onToolResult_OfEditFile_ShowsWholeDiffColored() {
+    // Arrange
+    TestTerminals.Captured terminal = TestTerminals.interactive();
+    ConsoleTurnOutputAdapter adapter = adapter(terminal, ThinkingDisplay.STREAM);
+    String diff = "Edited A.java\n@@ -1,3 +1,3 @@\n a\n-b\n+c\n d\n";
+
+    // Act
+    adapter.onToolResult(new ToolResult("c1", "edit_file", diff, false, false, Duration.ZERO));
+
+    // Assert
+    assertThat(terminal.plainText()).isEqualTo(
+        "  ⎿ Edited A.java\n    @@ -1,3 +1,3 @@\n     a\n    -b\n    +c\n     d\n\n");
+    assertThat(terminal.rawText()).contains("32m+c").contains("31m-b");
+  }
+
+  @Test
   void onToolCall_WithInvalidJsonArguments_ShowsThemAsIs() {
     // Arrange
     TestTerminals.Captured terminal = TestTerminals.interactive();

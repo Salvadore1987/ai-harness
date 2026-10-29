@@ -3,13 +3,16 @@ package dev.localllm.harness.infrastructure.out.ollama.toolcall;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Component;
 
+import dev.localllm.harness.application.model.ChatRequest;
 import dev.localllm.harness.application.model.ToolCall;
 import dev.localllm.harness.application.model.ToolSpec;
+import dev.localllm.harness.infrastructure.out.ollama.mapper.ChatMessageSpringAiMapper;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.ToolCallSpringAiMapper;
 
 /**
@@ -20,45 +23,77 @@ import dev.localllm.harness.infrastructure.out.ollama.mapper.ToolCallSpringAiMap
  * {@code ToolCallingAdvisor}, and the callbacks passed here only carry definitions.
  */
 @Component
-public class NativeToolCallMode {
+public class NativeToolCallMode implements ToolCallMode {
 
-  private final ToolCallSpringAiMapper mapper;
+  private final ChatMessageSpringAiMapper messageMapper;
+  private final ToolCallSpringAiMapper toolCallMapper;
 
   /**
    * Creates the mode.
    *
-   * @param mapper converts tool descriptions and calls
+   * @param messageMapper converts the history into Spring AI messages
+   * @param toolCallMapper converts tool descriptions and calls
    */
-  public NativeToolCallMode(ToolCallSpringAiMapper mapper) {
-    this.mapper = mapper;
+  public NativeToolCallMode(
+      ChatMessageSpringAiMapper messageMapper, ToolCallSpringAiMapper toolCallMapper) {
+    this.messageMapper = messageMapper;
+    this.toolCallMapper = toolCallMapper;
   }
 
-  /**
-   * Builds the callbacks that carry the tool definitions to the model.
-   *
-   * @param tools tools offered to the model
-   * @return definition-only callbacks, empty if no tools are offered
-   */
+  @Override
+  public List<Message> toMessages(ChatRequest request) {
+    return messageMapper.toSpringAiMessages(request.messages());
+  }
+
+  @Override
   public List<ToolCallback> toolCallbacks(List<ToolSpec> tools) {
     List<ToolCallback> callbacks = new ArrayList<>(tools.size());
     for (ToolSpec tool : tools) {
-      callbacks.add(new DefinitionOnlyToolCallback(mapper.toToolDefinition(tool)));
+      callbacks.add(new DefinitionOnlyToolCallback(toolCallMapper.toToolDefinition(tool)));
     }
     return callbacks;
   }
 
+  @Override
+  public ToolCallCollector newCollector(List<ToolSpec> tools) {
+    return new NativeCollector();
+  }
+
   /**
-   * Reads the tool calls of one streamed response. Spring AI merges the chunks of a call into
-   * one response, so calls are not split across responses.
-   *
-   * @param response streamed response
-   * @return tool calls, empty if the response carries none
+   * Collects the native calls; Spring AI merges the chunks of a call into one response, so calls
+   * are not split across responses. The answer text is shown as it is.
    */
-  public List<ToolCall> toolCalls(ChatResponse response) {
-    List<ToolCall> calls = new ArrayList<>();
-    for (Generation generation : response.getResults()) {
-      calls.addAll(mapper.toToolCalls(generation.getOutput().getToolCalls()));
+  private final class NativeCollector implements ToolCallCollector {
+
+    private final List<ToolCall> calls = new ArrayList<>();
+
+    @Override
+    public String visible(String fragment) {
+      return fragment;
     }
-    return calls;
+
+    @Override
+    public boolean accept(ChatResponse response) {
+      int before = calls.size();
+      for (Generation generation : response.getResults()) {
+        calls.addAll(toolCallMapper.toToolCalls(generation.getOutput().getToolCalls()));
+      }
+      return calls.size() > before;
+    }
+
+    @Override
+    public boolean isComplete() {
+      return false;
+    }
+
+    @Override
+    public String flush() {
+      return "";
+    }
+
+    @Override
+    public CollectedToolCalls finish(String content) {
+      return new CollectedToolCalls(content, calls, null);
+    }
   }
 }

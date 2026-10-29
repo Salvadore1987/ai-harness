@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.jspecify.annotations.Nullable;
+
 import dev.localllm.harness.application.dto.command.RunAgentTurnCommand;
 import dev.localllm.harness.application.dto.result.TurnResult;
 import dev.localllm.harness.application.exception.AgentLimitExceededException;
@@ -34,7 +36,9 @@ import dev.localllm.harness.application.port.out.TurnOutputPort;
  * <p>Every step is stored right away: the assistant message with its calls, then one result
  * message per call, so a resumed session always has a result for each call. The loop stops at
  * {@link AgentPolicy#maxIterations()} model requests or after
- * {@link AgentPolicy#maxParseFailures()} consecutive steps that called only unknown tools.
+ * {@link AgentPolicy#maxParseFailures()} consecutive steps that called only unknown tools or
+ * wrote a tool call that could not be read; such a call is stored as
+ * {@link ToolCall#PARSE_ERROR} and answered with {@code TOOL_ERROR}.
  * Cancellation stops the running stream at once and the loop before the next tool call; calls
  * that were skipped get a "cancelled" result. The system prompt is not stored: it is rebuilt
  * from the working directory on every request and stays the same between turns, so the prompt
@@ -44,12 +48,15 @@ public class AgentLoopService implements RunAgentTurnUseCase {
 
   private static final String SYSTEM_PROMPT = """
       You are a coding assistant working in a terminal on the user's machine.
-      Use the tools to look at files instead of guessing. Relative paths are resolved against \
-      the working directory. Answer without a tool call as soon as you have enough information. \
-      Answer in the language of the user.
+      Use the tools to read and change files, run commands and fetch web pages instead of \
+      guessing. Prefer edit_file over write_file for changes to existing files. Relative paths \
+      are resolved against the working directory. Answer without a tool call as soon as you \
+      have enough information. Answer in the language of the user.
       Working directory:\s""";
   private static final String SUMMARY_HEADER = "\n\nSummary of the earlier conversation:\n";
   private static final String CANCELLED_OUTPUT = "Cancelled by the user before execution";
+  private static final String TOOL_ERROR_PREFIX = "TOOL_ERROR: ";
+  private static final String TOOL_ERROR_SUFFIX = ". Repeat the call in the correct format.";
 
   private final ConversationPort conversationPort;
   private final SessionRegistrar sessionRegistrar;
@@ -122,7 +129,7 @@ public class AgentLoopService implements RunAgentTurnUseCase {
         conversationPort.append(command.sessionId(), userMessage);
       }
       List<ToolCall> calls = completion.status() == TurnStatus.COMPLETED
-          ? completion.toolCalls() : List.of();
+          ? requestedCalls(completion) : List.of();
       conversationPort.append(command.sessionId(),
           ChatMessage.assistant(completion.historyContent(), calls));
       if (!thinking.isEmpty()) {
@@ -134,7 +141,7 @@ public class AgentLoopService implements RunAgentTurnUseCase {
 
       parseFailures = calls.stream().noneMatch(call -> toolNames.contains(call.name()))
           ? parseFailures + 1 : 0;
-      executeTools(command, calls, toolNames);
+      executeTools(command, calls, toolNames, completion.toolCallError());
       if (cancellation.isRequested()) {
         return finish(command, completion, TurnStatus.CANCELLED, completionTokens, elapsed);
       }
@@ -164,17 +171,29 @@ public class AgentLoopService implements RunAgentTurnUseCase {
     return messages;
   }
 
+  private static List<ToolCall> requestedCalls(ChatCompletion completion) {
+    if (completion.toolCalls().isEmpty() && completion.toolCallError() != null) {
+      return List.of(ToolCall.parseError());
+    }
+    return completion.toolCalls();
+  }
+
   private void executeTools(RunAgentTurnCommand command, List<ToolCall> calls,
-      Set<String> toolNames) {
+      Set<String> toolNames, @Nullable String toolCallError) {
     for (ToolCall call : calls) {
       ToolResult result;
       if (cancellation.isRequested()) {
         result = ToolResult.rejected(call, CANCELLED_OUTPUT);
       } else {
         turnOutputPort.onToolCall(call);
-        result = toolNames.contains(call.name())
-            ? toolExecutorPort.execute(call, command.workingDirectory())
-            : ToolResult.rejected(call, unknownToolMessage(call, toolNames));
+        if (toolNames.contains(call.name())) {
+          result = toolExecutorPort.execute(call, command.workingDirectory());
+        } else if (ToolCall.PARSE_ERROR.equals(call.name()) && toolCallError != null) {
+          result = ToolResult.rejected(call,
+              TOOL_ERROR_PREFIX + toolCallError + TOOL_ERROR_SUFFIX);
+        } else {
+          result = ToolResult.rejected(call, unknownToolMessage(call, toolNames));
+        }
         turnOutputPort.onToolResult(result);
       }
       conversationPort.append(command.sessionId(), ChatMessage.toolResult(result));

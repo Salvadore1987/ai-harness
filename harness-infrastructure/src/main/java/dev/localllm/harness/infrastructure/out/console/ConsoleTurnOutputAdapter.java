@@ -30,6 +30,8 @@ import dev.localllm.harness.infrastructure.config.HarnessProperties.ThinkingDisp
  * with redirected output, only the answer goes to stdout and the reasoning summary goes to stderr.
  * Tool calls are shown as {@code ⏺ name(arguments)} followed by the first lines of the result,
  * or the whole result with {@code --verbose}; on a non-interactive terminal they go to stderr.
+ * The diff of {@code edit_file} is shown in full up to 40 lines, added lines green and removed
+ * lines red.
  */
 @Component
 public class ConsoleTurnOutputAdapter implements TurnOutputPort {
@@ -45,6 +47,12 @@ public class ConsoleTurnOutputAdapter implements TurnOutputPort {
   private static final AttributedStyle TOOL_STYLE =
       AttributedStyle.DEFAULT.foreground(AttributedStyle.GREEN);
   private static final AttributedStyle TOOL_OUTPUT_STYLE = AttributedStyle.DEFAULT.faint();
+  private static final AttributedStyle ADDED_STYLE =
+      AttributedStyle.DEFAULT.foreground(AttributedStyle.GREEN);
+  private static final AttributedStyle REMOVED_STYLE =
+      AttributedStyle.DEFAULT.foreground(AttributedStyle.RED);
+  private static final AttributedStyle HUNK_STYLE =
+      AttributedStyle.DEFAULT.foreground(AttributedStyle.CYAN);
   private static final String TOOL_PREFIX = "⏺ ";
   private static final String RESULT_PREFIX = "  ⎿ ";
   private static final String RESULT_INDENT = "    ";
@@ -135,11 +143,13 @@ public class ConsoleTurnOutputAdapter implements TurnOutputPort {
           result.truncated() ? " · вывод обрезан" : ""));
     }
     AttributedStyle style = result.error() ? ERROR_STYLE : TOOL_OUTPUT_STYLE;
+    boolean diff = ToolCallFormatter.isDiff(result);
     boolean interactive = isInteractive();
     for (int i = 0; i < lines.size(); i++) {
       String prefix = i == 0 ? RESULT_PREFIX : RESULT_INDENT;
       if (interactive) {
-        println(prefix + styled(lines.get(i), style));
+        String line = lines.get(i);
+        println(prefix + styled(line, diff && i > 0 ? diffStyle(line) : style));
       } else {
         diagnostics.println(prefix + lines.get(i));
       }
@@ -186,6 +196,16 @@ public class ConsoleTurnOutputAdapter implements TurnOutputPort {
     endLine();
     println(styled(message, result.compacted() ? THINKING_STYLE : WARNING_STYLE));
     writer().flush();
+  }
+
+  private static AttributedStyle diffStyle(String line) {
+    if (line.startsWith("+")) {
+      return ADDED_STYLE;
+    }
+    if (line.startsWith("-")) {
+      return REMOVED_STYLE;
+    }
+    return line.startsWith("@@") ? HUNK_STYLE : TOOL_OUTPUT_STYLE;
   }
 
   private void finishThinking() {

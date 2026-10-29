@@ -6,6 +6,6 @@ package dev.localllm.harness.application.model;
 public enum ModelCapability {
   /** The model can reason before answering. */
   THINKING,
-  /** The model supports native tool calling. */
+  /** The harness can offer tools to the model, natively or through a text protocol. */
   TOOLS
 }

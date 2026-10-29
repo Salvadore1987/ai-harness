@@ -164,6 +164,42 @@ class AgentLoopServiceTest {
   }
 
   @Test
+  void execute_WithUnreadableToolCall_ReturnsToolErrorAndContinues() {
+    // Arrange
+    chatModel.thenFailToParse("```tool\n{\"name\": }\n```", "invalid JSON")
+        .thenAnswer(new ChatChunk.Content("fixed"));
+
+    // Act
+    TurnResult result = service.execute(command("go"));
+
+    // Assert
+    assertThat(result.content()).isEqualTo("fixed");
+    assertThat(tools.executed()).isEmpty();
+    List<ChatMessage> history = conversation.history(sessionId);
+    assertThat(history.get(1).content()).isEqualTo("```tool\n{\"name\": }\n```");
+    assertThat(history.get(1).toolCalls()).extracting(ToolCall::name)
+        .containsExactly(ToolCall.PARSE_ERROR);
+    assertThat(history.get(2).role()).isEqualTo(Role.TOOL_RESULT);
+    assertThat(history.get(2).toolCallId()).isEqualTo(history.get(1).toolCalls().getFirst().id());
+    assertThat(history.get(2).content())
+        .isEqualTo("TOOL_ERROR: invalid JSON. Repeat the call in the correct format.");
+    assertThat(output.toolResults()).singleElement()
+        .satisfies(toolResult -> assertThat(toolResult.error()).isTrue());
+  }
+
+  @Test
+  void execute_WithUnreadableToolCallsInARow_StopsAtParseFailureLimit() {
+    // Arrange
+    chatModel.thenFailToParse("```tool\n{", "invalid JSON")
+        .thenFailToParse("```tool\n{}", "missing name");
+
+    // Act & Assert
+    assertThatThrownBy(() -> service.execute(command("go")))
+        .isInstanceOfSatisfying(AgentLimitExceededException.class, e ->
+            assertThat(e.getLimit()).isEqualTo(AgentLimitExceededException.Limit.PARSE_FAILURES));
+  }
+
+  @Test
   void execute_WhenKnownToolFollowsUnknown_ResetsParseFailures() {
     // Arrange
     chatModel.thenCall(new ToolCall("c1", "rm_rf", "{}"))

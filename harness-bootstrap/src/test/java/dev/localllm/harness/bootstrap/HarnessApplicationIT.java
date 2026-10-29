@@ -18,8 +18,10 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.util.FileSystemUtils;
 import picocli.CommandLine;
 
+import dev.localllm.harness.infrastructure.config.HarnessProperties.ToolCallModeType;
 import dev.localllm.harness.infrastructure.in.cli.HarnessCommand;
 import dev.localllm.harness.infrastructure.in.cli.handlers.PicocliExceptionHandler;
+import dev.localllm.harness.infrastructure.out.ollama.toolcall.ToolCallModeResolver;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
@@ -36,7 +38,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest(
     classes = HarnessApplication.class,
-    properties = {"harness.cli.enabled=false", "harness.home=build/test-harness-home"})
+    properties = {"harness.cli.enabled=false", "harness.home=build/test-harness-home",
+        "harness.tool-call-modes.[mistral7.2]=text-json"})
 class HarnessApplicationIT {
 
   @RegisterExtension
@@ -52,6 +55,9 @@ class HarnessApplicationIT {
   @Autowired
   private PicocliExceptionHandler exceptionHandler;
 
+  @Autowired
+  private ToolCallModeResolver toolCallModes;
+
   @BeforeAll
   static void cleanHome() throws IOException {
     FileSystemUtils.deleteRecursively(HOME);
@@ -60,6 +66,15 @@ class HarnessApplicationIT {
   @DynamicPropertySource
   static void ollamaUrl(DynamicPropertyRegistry registry) {
     registry.add("harness.ollama-base-url", ollama::baseUrl);
+  }
+
+  @Test
+  void toolCallModes_FromApplicationYmlAndProperties_AreBoundByPrefix() {
+    // Act & Assert
+    assertThat(toolCallModes.type("qwen3.5:27b")).isEqualTo(ToolCallModeType.NATIVE);
+    assertThat(toolCallModes.type("codellama:7b")).isEqualTo(ToolCallModeType.TEXT_JSON);
+    assertThat(toolCallModes.type("mistral7.2:latest")).isEqualTo(ToolCallModeType.TEXT_JSON);
+    assertThat(toolCallModes.type("mistral7:latest")).isEqualTo(ToolCallModeType.NATIVE);
   }
 
   @Test

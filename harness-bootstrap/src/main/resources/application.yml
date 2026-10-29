@@ -36,3 +36,10 @@ harness:
     max-parse-failures: ${HARNESS_AGENT_MAX_PARSE_FAILURES:2}
   tools:
     max-output-chars: ${HARNESS_TOOLS_MAX_OUTPUT_CHARS:8000}
+    shell: ${HARNESS_TOOLS_SHELL:/bin/zsh}
+    command-timeout: ${HARNESS_TOOLS_COMMAND_TIMEOUT:120s}
+    http-timeout: ${HARNESS_TOOLS_HTTP_TIMEOUT:30s}
+  # Model name prefix -> native | text-json; keys with dots need brackets: "[qwen3.5]".
+  tool-call-modes:
+    "[codellama]": ${HARNESS_TOOL_CALL_MODE_CODELLAMA:text-json}
+  default-tool-call-mode: ${HARNESS_DEFAULT_TOOL_CALL_MODE:native}

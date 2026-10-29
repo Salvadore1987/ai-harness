@@ -52,7 +52,7 @@ public final class FakeChatModelPort implements ChatModelPort {
    * @return this fake
    */
   public FakeChatModelPort thenCall(ToolCall... calls) {
-    steps.add(new Step(List.of(), List.of(calls)));
+    steps.add(new Step(List.of(), List.of(calls), null));
     return this;
   }
 
@@ -63,7 +63,19 @@ public final class FakeChatModelPort implements ChatModelPort {
    * @return this fake
    */
   public FakeChatModelPort thenAnswer(ChatChunk... scripted) {
-    steps.add(new Step(List.of(scripted), List.of()));
+    steps.add(new Step(List.of(scripted), List.of(), null));
+    return this;
+  }
+
+  /**
+   * Queues a step in which the model writes a tool call that cannot be read.
+   *
+   * @param text answer text with the broken call
+   * @param error why the call could not be read
+   * @return this fake
+   */
+  public FakeChatModelPort thenFailToParse(String text, String error) {
+    steps.add(new Step(List.of(new ChatChunk.Content(text)), List.of(), error));
     return this;
   }
 
@@ -107,7 +119,7 @@ public final class FakeChatModelPort implements ChatModelPort {
     if (toThrow != null) {
       throw toThrow;
     }
-    Step step = steps.isEmpty() ? new Step(chunks, List.of()) : steps.poll();
+    Step step = steps.isEmpty() ? new Step(chunks, List.of(), null) : steps.poll();
     StringBuilder content = new StringBuilder();
     for (ChatChunk chunk : step.chunks()) {
       chunkConsumer.accept(chunk);
@@ -116,7 +128,7 @@ public final class FakeChatModelPort implements ChatModelPort {
       }
     }
     return new ChatCompletion(content.toString(), status, usage, Duration.ofMillis(250),
-        step.calls());
+        step.calls(), step.toolCallError());
   }
 
   @Override
@@ -142,6 +154,7 @@ public final class FakeChatModelPort implements ChatModelPort {
     return cancelCount;
   }
 
-  private record Step(List<ChatChunk> chunks, List<ToolCall> calls) {
+  private record Step(
+      List<ChatChunk> chunks, List<ToolCall> calls, @Nullable String toolCallError) {
   }
 }
