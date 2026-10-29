@@ -123,7 +123,7 @@ public class SessionSlashCommands {
     CompactionResult result =
         compactSessionUseCase.execute(mapper.toCompactSessionCommand(session));
     if (!result.compacted()) {
-      println("Сжимать нечего: история короткая");
+      println("Сжимать нечего: вся история помещается в хвост, который остаётся дословно");
       return;
     }
     println(String.format(Locale.ROOT, "История сжата%s: ~%d → ~%d токенов",

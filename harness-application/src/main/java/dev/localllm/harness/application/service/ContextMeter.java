@@ -5,6 +5,7 @@ import java.util.List;
 import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.ContextPolicy;
 import dev.localllm.harness.application.model.ContextUsage;
+import dev.localllm.harness.application.model.ToolCall;
 import dev.localllm.harness.application.port.out.ContextBudgetPort;
 
 /**
@@ -40,9 +41,29 @@ public class ContextMeter {
    * @return estimated tokens
    */
   public int estimateTokens(List<ChatMessage> messages) {
-    long chars = messages.stream().mapToLong(message -> message.content().length()).sum();
+    long chars = messages.stream().mapToLong(ContextMeter::chars).sum();
     return (int) Math.ceil(chars / policy.charsPerToken())
         + MESSAGE_OVERHEAD_TOKENS * messages.size();
+  }
+
+  /**
+   * Estimates the tokens of one message, including the tool calls it carries.
+   *
+   * @param message message to estimate
+   * @return estimated tokens
+   */
+  public int estimateTokens(ChatMessage message) {
+    return (int) Math.ceil(chars(message) / policy.charsPerToken()) + MESSAGE_OVERHEAD_TOKENS;
+  }
+
+  /**
+   * Tokens the most recent messages may take and still be kept verbatim by a compaction.
+   *
+   * @param model model tag
+   * @return tail budget in tokens
+   */
+  public int tailBudget(String model) {
+    return (int) (contextBudgetPort.contextLength(model) * policy.keepTailShare());
   }
 
   /**
@@ -68,5 +89,13 @@ public class ContextMeter {
   public boolean isOverThreshold(ContextUsage usage) {
     return usage.budgetTokens() > 0
         && usage.usedTokens() >= policy.compactThreshold() * usage.budgetTokens();
+  }
+
+  private static long chars(ChatMessage message) {
+    long chars = message.content().length();
+    for (ToolCall call : message.toolCalls()) {
+      chars += call.name().length() + call.argumentsJson().length();
+    }
+    return chars;
   }
 }

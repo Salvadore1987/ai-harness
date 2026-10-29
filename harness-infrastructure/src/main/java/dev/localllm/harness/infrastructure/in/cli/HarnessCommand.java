@@ -17,13 +17,14 @@ import dev.localllm.harness.application.model.TurnStatus;
 import dev.localllm.harness.application.port.in.ResumeSessionUseCase;
 import dev.localllm.harness.application.port.in.StartSessionUseCase;
 import dev.localllm.harness.application.port.in.SwitchModelUseCase;
+import dev.localllm.harness.infrastructure.config.DisplayOptions;
 import dev.localllm.harness.infrastructure.config.HarnessProperties;
 import dev.localllm.harness.infrastructure.in.cli.handlers.CliErrorReporter;
 import dev.localllm.harness.infrastructure.in.cli.mapper.ReplCliMapper;
 
 /**
- * Entry command: {@code harness [--model M] [--cwd DIR] [--resume [ID]] [--no-think] [--verbose]
- * [-p PROMPT]}.
+ * Entry command: {@code harness [--model M] [--cwd DIR] [--resume [ID]] [--mode chat|agent]
+ * [--no-think] [--verbose] [-p PROMPT]}.
  *
  * <p>Without {@code -p} it opens the REPL; with {@code -p} it runs one turn, prints the answer
  * and exits with 0 on success or 1 on failure.
@@ -52,7 +53,12 @@ public class HarnessCommand implements Callable<Integer> {
   @Option(names = "--no-think", description = "Start with the thinking mode turned off.")
   private boolean noThink;
 
-  @Option(names = "--verbose", description = "Print token statistics after each answer.")
+  @Option(names = "--mode", paramLabel = "MODE", converter = ReplModeConverter.class,
+      description = "chat (default) or agent: the model may read files with tools.")
+  private ReplMode mode = ReplMode.CHAT;
+
+  @Option(names = "--verbose",
+      description = "Print token statistics and the full output of tool calls.")
   private boolean verbose;
 
   @Option(names = {"-p", "--print"}, description = "Run one prompt, print the answer, exit.")
@@ -66,6 +72,7 @@ public class HarnessCommand implements Callable<Integer> {
   private final ReplRunner replRunner;
   private final CliErrorReporter errorReporter;
   private final HarnessProperties properties;
+  private final DisplayOptions displayOptions;
 
   /**
    * Creates the command.
@@ -78,6 +85,7 @@ public class HarnessCommand implements Callable<Integer> {
    * @param replRunner interactive loop
    * @param errorReporter prints startup failures
    * @param properties harness defaults
+   * @param displayOptions display flags shared with the terminal presentation
    */
   public HarnessCommand(
       StartSessionUseCase startSessionUseCase,
@@ -87,7 +95,8 @@ public class HarnessCommand implements Callable<Integer> {
       TurnExecutor turnExecutor,
       ReplRunner replRunner,
       CliErrorReporter errorReporter,
-      HarnessProperties properties) {
+      HarnessProperties properties,
+      DisplayOptions displayOptions) {
     this.startSessionUseCase = startSessionUseCase;
     this.resumeSessionUseCase = resumeSessionUseCase;
     this.switchModelUseCase = switchModelUseCase;
@@ -96,6 +105,7 @@ public class HarnessCommand implements Callable<Integer> {
     this.replRunner = replRunner;
     this.errorReporter = errorReporter;
     this.properties = properties;
+    this.displayOptions = displayOptions;
   }
 
   @Override
@@ -105,6 +115,8 @@ public class HarnessCommand implements Callable<Integer> {
         properties.thinking().enabled() && !noThink,
         verbose,
         workingDirectory == null ? Path.of("") : workingDirectory);
+    session.setMode(mode);
+    displayOptions.setVerbose(verbose);
     if (!openSession(session)) {
       return FAILURE;
     }

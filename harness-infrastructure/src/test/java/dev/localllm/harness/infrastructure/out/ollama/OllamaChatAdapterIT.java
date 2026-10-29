@@ -23,9 +23,14 @@ import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.ChatRequest;
 import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.TokenUsage;
+import dev.localllm.harness.application.model.ToolCall;
+import dev.localllm.harness.application.model.ToolResult;
+import dev.localllm.harness.application.model.ToolSource;
+import dev.localllm.harness.application.model.ToolSpec;
 import dev.localllm.harness.application.model.TurnStatus;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.matchingJsonPath;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
@@ -101,6 +106,92 @@ class OllamaChatAdapterIT {
     // Assert
     ollama.verify(postRequestedFor(urlEqualTo("/api/chat"))
         .withRequestBody(matchingJsonPath("$.think", equalTo("false"))));
+  }
+
+  @Test
+  void stream_WithToolCallInStream_ReturnsToolCallWithoutExecutingIt() {
+    // Arrange
+    stubChat(thinking("need the file")
+        + String.format(CHUNK, "\"content\":\"\",\"tool_calls\":[{\"id\":\"call_1\","
+            + "\"function\":{\"index\":0,\"name\":\"read_file\","
+            + "\"arguments\":{\"path\":\"Calc.java\"}}}]", "\"done\":false")
+        + String.format(CHUNK, "\"content\":\"\"",
+            "\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":30,"
+                + "\"eval_count\":9"));
+    OllamaChatAdapter adapter = OllamaTestSupport.chatAdapter(ollama.baseUrl());
+    List<ChatChunk> chunks = new ArrayList<>();
+
+    // Act
+    ChatCompletion completion = adapter.stream(toolRequest(List.of()), chunks::add);
+
+    // Assert
+    assertThat(completion.toolCalls()).containsExactly(
+        new ToolCall("call_1", "read_file", "{\"path\":\"Calc.java\"}"));
+    assertThat(completion.status()).isEqualTo(TurnStatus.COMPLETED);
+    assertThat(completion.usage()).isEqualTo(new TokenUsage(30, 9));
+    assertThat(chunks).containsExactly(new ChatChunk.Thinking("need the file"));
+  }
+
+  @Test
+  void stream_WithToolCallWithoutId_GeneratesId() {
+    // Arrange
+    stubChat(String.format(CHUNK, "\"content\":\"\",\"tool_calls\":[{\"function\":"
+            + "{\"name\":\"list_dir\",\"arguments\":{}}}]", "\"done\":false")
+        + String.format(CHUNK, "\"content\":\"\"", "\"done\":true,\"done_reason\":\"stop\""));
+    OllamaChatAdapter adapter = OllamaTestSupport.chatAdapter(ollama.baseUrl());
+
+    // Act
+    ChatCompletion completion = adapter.stream(toolRequest(List.of()), chunk -> { });
+
+    // Assert
+    assertThat(completion.toolCalls()).singleElement().satisfies(call -> {
+      assertThat(call.id()).isNotBlank();
+      assertThat(call.name()).isEqualTo("list_dir");
+      assertThat(call.argumentsJson()).isEqualTo("{}");
+    });
+  }
+
+  @Test
+  void stream_WithToolsAndToolHistory_SendsDefinitionsCallsAndResults() {
+    // Arrange
+    stubChat(STREAM);
+    OllamaChatAdapter adapter = OllamaTestSupport.chatAdapter(ollama.baseUrl());
+    ToolCall call = new ToolCall("call_1", "read_file", "{\"path\":\"Calc.java\"}");
+    List<ChatMessage> history = List.of(
+        ChatMessage.assistant("", List.of(call)),
+        ChatMessage.toolResult(new ToolResult("call_1", "read_file", "1\tclass Calc {}", false,
+            false, Duration.ZERO)));
+
+    // Act
+    adapter.stream(toolRequest(history), chunk -> { });
+
+    // Assert
+    ollama.verify(postRequestedFor(urlEqualTo("/api/chat"))
+        .withRequestBody(matchingJsonPath("$.tools[0].type", equalTo("function")))
+        .withRequestBody(matchingJsonPath("$.tools[0].function.name", equalTo("read_file")))
+        .withRequestBody(matchingJsonPath(
+            "$.tools[0].function.parameters.required[0]", equalTo("path")))
+        .withRequestBody(matchingJsonPath("$.messages[1].role", equalTo("assistant")))
+        .withRequestBody(matchingJsonPath(
+            "$.messages[1].tool_calls[0].function.name", equalTo("read_file")))
+        .withRequestBody(matchingJsonPath(
+            "$.messages[1].tool_calls[0].function.arguments.path", equalTo("Calc.java")))
+        .withRequestBody(matchingJsonPath("$.messages[2].role", equalTo("tool")))
+        .withRequestBody(matchingJsonPath("$.messages[2].content", equalTo("1\tclass Calc {}"))));
+  }
+
+  @Test
+  void stream_WithoutTools_SendsEmptyToolList() {
+    // Arrange
+    stubChat(STREAM);
+    OllamaChatAdapter adapter = OllamaTestSupport.chatAdapter(ollama.baseUrl());
+
+    // Act
+    adapter.stream(request(false), chunk -> { });
+
+    // Assert
+    ollama.verify(postRequestedFor(urlEqualTo("/api/chat"))
+        .withRequestBody(containing("\"tools\":[]")));
   }
 
   @Test
@@ -206,6 +297,17 @@ class OllamaChatAdapterIT {
     ollama.stubFor(post("/api/chat").willReturn(aResponse()
         .withHeader("Content-Type", "application/x-ndjson")
         .withBody(ndjson)));
+  }
+
+  private static ChatRequest toolRequest(List<ChatMessage> history) {
+    List<ChatMessage> messages = new ArrayList<>();
+    messages.add(new ChatMessage(Role.USER, "what does add do?"));
+    messages.addAll(history);
+    return new ChatRequest(OllamaTestSupport.MODEL, messages, true, List.of(new ToolSpec(
+        "read_file", "Read a file",
+        "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"}},"
+            + "\"required\":[\"path\"]}",
+        ToolSource.BUILTIN)));
   }
 
   private static ChatRequest request(boolean thinking) {

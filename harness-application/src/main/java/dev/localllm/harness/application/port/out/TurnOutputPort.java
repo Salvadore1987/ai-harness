@@ -2,6 +2,8 @@ package dev.localllm.harness.application.port.out;
 
 import dev.localllm.harness.application.dto.result.CompactionResult;
 import dev.localllm.harness.application.dto.result.TurnResult;
+import dev.localllm.harness.application.model.ToolCall;
+import dev.localllm.harness.application.model.ToolResult;
 
 /**
  * Presents a streamed turn to the user.
@@ -21,6 +23,20 @@ public interface TurnOutputPort {
    * @param text answer fragment
    */
   void onContent(String text);
+
+  /**
+   * Shows that the model called a tool; the call is executed after this returns.
+   *
+   * @param call the requested call
+   */
+  void onToolCall(ToolCall call);
+
+  /**
+   * Shows the outcome of a tool call.
+   *
+   * @param result outcome of the call
+   */
+  void onToolResult(ToolResult result);
 
   /**
    * Finishes the turn presentation.

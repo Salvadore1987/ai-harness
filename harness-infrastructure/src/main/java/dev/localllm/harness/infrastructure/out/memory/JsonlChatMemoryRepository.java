@@ -11,7 +11,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -183,15 +182,14 @@ public class JsonlChatMemoryRepository implements ChatMemoryRepository {
     write(conversationId, all);
   }
 
-  private static boolean isPrefix(List<Message> stored, List<Message> messages) {
+  private boolean isPrefix(List<Message> stored, List<Message> messages) {
     if (stored.size() > messages.size()) {
       return false;
     }
     for (int i = 0; i < stored.size(); i++) {
-      Message left = stored.get(i);
-      Message right = messages.get(i);
-      if (left.getMessageType() != right.getMessageType()
-          || !Objects.equals(left.getText(), right.getText())) {
+      JsonlLine left = lineMapper.toMessageLine(stored.get(i), Instant.EPOCH);
+      JsonlLine right = lineMapper.toMessageLine(messages.get(i), Instant.EPOCH);
+      if (!left.equals(right)) {
         return false;
       }
     }

@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -23,6 +24,8 @@ import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.SessionInfo;
+import dev.localllm.harness.application.model.ToolCall;
+import dev.localllm.harness.application.model.ToolResult;
 import dev.localllm.harness.infrastructure.TestProperties;
 import dev.localllm.harness.infrastructure.config.HarnessProperties;
 import dev.localllm.harness.infrastructure.out.memory.mapper.ChatMessageMemoryMapper;
@@ -155,6 +158,49 @@ class JsonlSessionStorageTest {
   }
 
   @Test
+  void conversationAdapter_WithToolCallsAndResults_StoresAndRestoresThem() throws IOException {
+    // Arrange
+    ChatMemoryConversationAdapter adapter = adapter();
+    ToolCall call = new ToolCall("call_1", "read_file", "{\"path\":\"Calc.java\"}");
+    ChatMessage assistant = ChatMessage.assistant("Let me read it", List.of(call));
+    ChatMessage result = ChatMessage.toolResult(new ToolResult("call_1", "read_file",
+        "1\tclass Calc {}", false, false, Duration.ZERO));
+
+    // Act
+    adapter.append(sessionId, new ChatMessage(Role.USER, "what is Calc?"));
+    adapter.append(sessionId, assistant);
+    adapter.append(sessionId, result);
+
+    // Assert
+    assertThat(adapter().history(sessionId)).containsExactly(
+        new ChatMessage(Role.USER, "what is Calc?"), assistant, result);
+    assertThat(fileLines()).hasSize(3);
+    assertThat(fileLines().get(1)).contains(
+        "\"toolCalls\":[{\"id\":\"call_1\",\"name\":\"read_file\","
+            + "\"argsJson\":\"{\\\"path\\\":\\\"Calc.java\\\"}\"}]");
+    assertThat(fileLines().get(2)).contains("\"role\":\"TOOL_RESULT\"",
+        "\"callId\":\"call_1\"", "\"toolName\":\"read_file\"");
+  }
+
+  @Test
+  void saveAll_WithDifferentToolResults_DetectsChangedPrefix() throws IOException {
+    // Arrange
+    ChatMemoryConversationAdapter adapter = adapter();
+    adapter.append(sessionId, ChatMessage.toolResult(
+        new ToolResult("c1", "glob", "first", false, false, Duration.ZERO)));
+    ChatMessageMemoryMapper mapper = Mappers.getMapper(ChatMessageMemoryMapper.class);
+
+    // Act
+    repository.saveAll(id(), List.of(mapper.toSpringAiMessage(ChatMessage.toolResult(
+        new ToolResult("c1", "glob", "second", false, false, Duration.ZERO)))));
+
+    // Assert
+    assertThat(adapter.history(sessionId)).extracting(ChatMessage::content)
+        .containsExactly("second");
+    assertThat(fileLines()).hasSize(1);
+  }
+
+  @Test
   void catalog_ListsSessionsOfDirectoryNewestFirst() {
     // Arrange
     JsonlSessionCatalogAdapter catalog = new JsonlSessionCatalogAdapter(repository);
@@ -171,6 +217,12 @@ class JsonlSessionStorageTest {
     // Assert
     assertThat(sessions).extracting(SessionInfo::title).containsExactly("Newer", "Explain");
     assertThat(catalog.find(newer)).isPresent();
+  }
+
+  private ChatMemoryConversationAdapter adapter() {
+    return new ChatMemoryConversationAdapter(memory, repository,
+        Mappers.getMapper(ChatMessageMemoryMapper.class),
+        TestProperties.create(home, "http://localhost:11434", false));
   }
 
   private JsonlChatMemoryRepository repository(boolean persistThinking) {

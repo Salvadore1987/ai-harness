@@ -6,6 +6,8 @@ dependencies {
     implementation(project(":harness-infrastructure"))
     implementation(libs.spring.boot.starter)
     implementation(libs.spring.boot.starter.log4j2)
+    // Constraint annotations of HarnessProperties records read while compiling BeanConfig.
+    implementation(libs.spring.boot.starter.validation)
 
     testImplementation(testFixtures(project(":harness-application")))
     testImplementation(libs.spring.boot.starter.test)

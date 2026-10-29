@@ -5,6 +5,8 @@ import java.util.List;
 
 import dev.localllm.harness.application.dto.result.CompactionResult;
 import dev.localllm.harness.application.dto.result.TurnResult;
+import dev.localllm.harness.application.model.ToolCall;
+import dev.localllm.harness.application.model.ToolResult;
 import dev.localllm.harness.application.port.out.TurnOutputPort;
 
 /**
@@ -16,6 +18,8 @@ public final class RecordingTurnOutputPort implements TurnOutputPort {
   private final List<String> content = new ArrayList<>();
   private final List<TurnResult> results = new ArrayList<>();
   private final List<CompactionResult> compactions = new ArrayList<>();
+  private final List<ToolCall> toolCalls = new ArrayList<>();
+  private final List<ToolResult> toolResults = new ArrayList<>();
 
   @Override
   public void onThinking(String text) {
@@ -25,6 +29,16 @@ public final class RecordingTurnOutputPort implements TurnOutputPort {
   @Override
   public void onContent(String text) {
     content.add(text);
+  }
+
+  @Override
+  public void onToolCall(ToolCall call) {
+    toolCalls.add(call);
+  }
+
+  @Override
+  public void onToolResult(ToolResult result) {
+    toolResults.add(result);
   }
 
   @Override
@@ -71,5 +85,23 @@ public final class RecordingTurnOutputPort implements TurnOutputPort {
    */
   public List<TurnResult> results() {
     return List.copyOf(results);
+  }
+
+  /**
+   * Tool calls presented so far.
+   *
+   * @return tool calls
+   */
+  public List<ToolCall> toolCalls() {
+    return List.copyOf(toolCalls);
+  }
+
+  /**
+   * Tool results presented so far.
+   *
+   * @return tool results
+   */
+  public List<ToolResult> toolResults() {
+    return List.copyOf(toolResults);
   }
 }

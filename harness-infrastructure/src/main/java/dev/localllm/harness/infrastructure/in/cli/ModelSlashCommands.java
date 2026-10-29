@@ -104,9 +104,14 @@ public class ModelSlashCommands {
   private void switchModel(ReplSession session, String model) {
     ModelSummaryResult selected = switchModelUseCase.execute(mapper.toSwitchModelCommand(model));
     boolean thinkingDisabled = session.applyModel(selected);
-    String notice = thinkingDisabled
-        ? " (модель не поддерживает размышления — режим выключен)"
-        : "";
+    StringBuilder notice = new StringBuilder();
+    if (thinkingDisabled) {
+      notice.append(" (модель не поддерживает размышления — режим выключен)");
+    }
+    if (session.getMode() == ReplMode.AGENT && !session.isToolsSupported()) {
+      session.setMode(ReplMode.CHAT);
+      notice.append(" (модель не поддерживает инструменты — режим chat)");
+    }
     println("Модель: " + selected.name() + notice);
   }
 

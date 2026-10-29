@@ -6,6 +6,7 @@ import org.mapstruct.Mapping;
 import dev.localllm.harness.application.dto.command.CancelTurnCommand;
 import dev.localllm.harness.application.dto.command.CompactSessionCommand;
 import dev.localllm.harness.application.dto.command.ResumeSessionCommand;
+import dev.localllm.harness.application.dto.command.RunAgentTurnCommand;
 import dev.localllm.harness.application.dto.command.SendMessageCommand;
 import dev.localllm.harness.application.dto.command.StartSessionCommand;
 import dev.localllm.harness.application.dto.command.SwitchModelCommand;
@@ -13,6 +14,7 @@ import dev.localllm.harness.application.dto.command.ToggleThinkingCommand;
 import dev.localllm.harness.application.dto.query.ContextUsageCriteria;
 import dev.localllm.harness.application.dto.query.ListModelsCriteria;
 import dev.localllm.harness.application.dto.query.ListSessionsCriteria;
+import dev.localllm.harness.application.dto.query.ListToolsCriteria;
 import dev.localllm.harness.infrastructure.in.cli.ReplSession;
 
 /**
@@ -34,6 +36,20 @@ public interface ReplCliMapper {
   @Mapping(target = "thinkingEnabled", source = "session.thinkingEnabled")
   @Mapping(target = "text", source = "text")
   SendMessageCommand toSendMessageCommand(ReplSession session, String text);
+
+  /**
+   * Builds the command for an agent turn.
+   *
+   * @param session CLI state with session, directory, model and thinking flag
+   * @param text user message, with file mentions already expanded
+   * @return agent command
+   */
+  @Mapping(target = "sessionId", source = "session.sessionId")
+  @Mapping(target = "workingDirectory", source = "session.workingDirectory")
+  @Mapping(target = "model", source = "session.model")
+  @Mapping(target = "thinkingEnabled", source = "session.thinkingEnabled")
+  @Mapping(target = "text", source = "text")
+  RunAgentTurnCommand toRunAgentTurnCommand(ReplSession session, String text);
 
   /**
    * Builds the command that cancels the running turn.
@@ -114,4 +130,13 @@ public interface ReplCliMapper {
    * @return usage criteria
    */
   ContextUsageCriteria toContextUsageCriteria(ReplSession session);
+
+  /**
+   * Builds the tool list criteria.
+   *
+   * @param namePrefix name prefix, empty for all tools
+   * @return list criteria
+   */
+  @Mapping(target = "namePrefix", source = "namePrefix")
+  ListToolsCriteria toListToolsCriteria(String namePrefix);
 }

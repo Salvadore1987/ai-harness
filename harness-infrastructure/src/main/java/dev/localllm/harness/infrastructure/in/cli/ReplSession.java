@@ -20,6 +20,8 @@ public final class ReplSession {
   private String model;
   private boolean thinkingEnabled;
   private boolean thinkingSupported = true;
+  private boolean toolsSupported = true;
+  private ReplMode mode = ReplMode.CHAT;
 
   /**
    * Creates the state for a CLI run.
@@ -112,6 +114,33 @@ public final class ReplSession {
   }
 
   /**
+   * Whether the current model supports native tool calling.
+   *
+   * @return capability flag
+   */
+  public boolean isToolsSupported() {
+    return toolsSupported;
+  }
+
+  /**
+   * How user messages are handled.
+   *
+   * @return current mode
+   */
+  public ReplMode getMode() {
+    return mode;
+  }
+
+  /**
+   * Changes how user messages are handled.
+   *
+   * @param mode new mode
+   */
+  public void setMode(ReplMode mode) {
+    this.mode = mode;
+  }
+
+  /**
    * Whether turn statistics are printed.
    *
    * @return verbose flag
@@ -147,6 +176,7 @@ public final class ReplSession {
   public boolean applyModel(ModelSummaryResult selected) {
     this.model = selected.name();
     this.thinkingSupported = selected.thinkingSupported();
+    this.toolsSupported = selected.toolsSupported();
     boolean disabled = thinkingEnabled && !thinkingSupported;
     if (disabled) {
       thinkingEnabled = false;

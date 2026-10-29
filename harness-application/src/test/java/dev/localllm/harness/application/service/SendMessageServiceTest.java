@@ -37,7 +37,7 @@ class SendMessageServiceTest {
   private static final String MODEL = "qwen3.5:27b";
   private static final Path CWD = Path.of("/work/project");
   private static final Instant NOW = Instant.parse("2026-10-29T10:00:00Z");
-  private static final ContextPolicy POLICY = new ContextPolicy(0.8, 2, 4.0);
+  private static final ContextPolicy POLICY = new ContextPolicy(0.8, 0.25, 4.0);
 
   private final SessionId sessionId = SessionId.newId();
   private final InMemoryConversationPort conversation = new InMemoryConversationPort();
@@ -50,9 +50,10 @@ class SendMessageServiceTest {
   @BeforeEach
   void setUp() {
     ContextMeter meter = new ContextMeter(budget, POLICY);
-    service = new SendMessageService(conversation, catalog, chatModel, output, meter,
-        new ConversationCompactor(conversation, chatModel, meter, POLICY),
-        Mappers.getMapper(TurnApplicationMapper.class), Clock.fixed(NOW, ZoneOffset.UTC));
+    service = new SendMessageService(conversation,
+        new SessionRegistrar(catalog, Clock.fixed(NOW, ZoneOffset.UTC)), chatModel, output,
+        new ConversationCompactor(conversation, chatModel, meter),
+        Mappers.getMapper(TurnApplicationMapper.class));
   }
 
   @Test
