@@ -62,7 +62,7 @@ Ollama, MCP и описание инструментов (`ToolCallback`) бер
     | `glob` | `pattern` | Поиск файлов по маске |
     | `grep` | `pattern`, `path?`, `glob?` | Поиск по содержимому (regex) |
     | `write_file` | `path`, `content` | Создать или перезаписать файл |
-    | `edit_file` | `path`, `old`, `new` | Заменить уникальную подстроку, в терминал выводится diff |
+    | `edit_file` | `path`, `oldText`, `newText` | Заменить уникальную подстроку, в терминал выводится diff |
     | `run_command` | `command`, `timeoutSec?` | Выполнить shell-команду (`/bin/zsh -c`), вернуть stdout/stderr/exit code |
     | `http_fetch` | `url` | HTTP GET, вернуть текст (HTML упрощается до текста) |
 
@@ -270,28 +270,33 @@ public TurnResult run(SendMessageCommand command) {
    ```
    ````
 
-2. `ToolBlockParser` ищет блок в агрегированном тексте ответа по регулярному выражению ```` ```tool\s*(\{.*?\})\s*``` ```` (DOTALL). Затем JSON разбирается Jackson и сверяется с `inputSchema` инструмента.
-3. Результат возвращается модели как `UserMessage`:
+2. `ToolBlockParser` находит в ответе первый ```` ```tool ```` и читает следующий за ним JSON-объект потоковым парсером Jackson — не до ближайшего ```` ``` ````, поэтому строки могут содержать фигурные скобки и ограждения (например, содержимое `write_file`). Текст после блока отбрасывается. Вызов сверяется с `inputSchema` инструмента: инструмент существует, обязательные аргументы есть, лишних нет.
+3. Результат возвращается модели как `UserMessage` (признак ошибки виден по тексту `Error: …`, отдельный статус в истории не хранится):
 
    ```
-   TOOL_RESULT read_file (ok):
+   TOOL_RESULT read_file:
    <вывод, обрезанный до harness.tools.max-output-chars>
    ```
 
+   В истории вызовы хранятся структурно, как в нативном режиме; в текст (блок у ассистента, `TOOL_RESULT` у пользователя) они превращаются при каждом запросе, поэтому сессию можно продолжить другой моделью в другом режиме.
+
 4. Если разбор не удался (битый JSON, неизвестный инструмент, нет обязательного аргумента), модели отправляется `TOOL_ERROR: <причина>. Повтори вызов в корректном формате`. Два неудачных разбора подряд — цикл останавливается.
-5. В `OllamaChatOptions.stop` передаётся маркер окончания блока, чтобы генерация обрывалась сразу после вызова и модель не «додумывала» результат инструмента.
+5. Генерация обрывается сразу после закрытия блока, чтобы модель не «додумывала» результат инструмента: harness сам прекращает чтение стрима, как только JSON-объект и закрывающее ```` ``` ```` получены, и Ollama останавливает генерацию. Stop-последовательность Ollama для этого не подходит: ```` ``` ```` закрывает и обычные блоки кода, а `TOOL_RESULT` может встретиться в рассуждениях модели. Цена — у шага с вызовом нет счётчиков токенов (они приходят в последнем чанке).
+6. Пока ответ стримится, блок скрыт от пользователя: текст, похожий на начало ```` ```tool ````, придерживается до следующего фрагмента. Вместо блока показывается обычная строка `⏺ read_file(…)`.
 
 Режим выбирается в конфиге по префиксу имени модели:
 
 ```yaml
 harness:
   tool-call-modes:
-    "qwen3.5": native
-    "qwen2.5-coder": native
-    "llama3.1": native
-    "codellama": text-json
+    "[qwen3.5]": native        # ключи с точкой — в квадратных скобках (правило Spring Boot)
+    "[qwen2.5-coder]": native
+    "[llama3.1]": native
+    "[codellama]": text-json
   default-tool-call-mode: native
 ```
+
+Побеждает самый длинный подходящий префикс, регистр не учитывается. Модель в режиме `text-json` считается поддерживающей инструменты, даже если Ollama не объявляет у неё `tools`: для неё доступен `/mode agent`.
 
 ## Data Model
 
@@ -366,7 +371,9 @@ harness:
     max-parse-failures: 2
   tools:
     max-output-chars: 8000
+    shell: /bin/zsh
     command-timeout: 120s
+    http-timeout: 30s
   context:
     num-ctx: 65536            # запрашиваемое окно; фактическое читается из /api/ps
     compact-threshold: 0.8
@@ -433,6 +440,7 @@ harness:
 | Ошибка разбора вызова инструмента | `TOOL_ERROR` возвращается модели; после `max-parse-failures` — остановка цикла и сообщение пользователю |
 | Исключение в `ToolCallback` | Отправляется модели как результат с `error=true`, цикл продолжается |
 | `run_command` превысил таймаут | Процесс уничтожается (`destroyForcibly` всего дерева), модели уходит `timeout after 120s` и накопленный вывод |
+| Ollama завершила ответ без единого токена | Запрос повторяется один раз. Так иногда ведёт себя MLX-раннер Ollama 0.40 при почти полностью закешированном промпте: сразу `done` без текста и `eval_count` |
 | Достигнут `max-iterations` | Цикл останавливается: `⚠ Достигнут лимит 25 итераций` |
 | MCP-сервер не стартовал | Предупреждение при старте, его инструменты не регистрируются, остальная работа продолжается |
 | Повреждённая строка JSONL | Строка пропускается, предупреждение пишется в лог |
@@ -529,7 +537,7 @@ harness:
 1. ✅ **M1 — каркас и чат:** три Gradle-модуля, Spring Boot 4.1.2 + Spring AI 2.0.2, Picocli + JLine REPL, `OllamaChatAdapter` (стриминг без tools), `SendMessageService`, режим размышлений (требование 9, без `persist`), Ctrl+C, режим `-p`, slash-команды `/help /exit /clear /model /think`, история в памяти процесса.
 2. ✅ **M2 — сессии и контекст:** `JsonlChatMemoryRepository`, `TokenWindowChatMemory`, `--resume`/`/resume`/`/sessions`, `/compact`, `/context`, `@`-упоминания файлов.
 3. ✅ **M3 — агентный цикл, чтение:** `@Tool` `FileTools` (read/list/glob/grep), `SpringAiToolExecutor`, `NativeToolCallMode`, `AgentLoopService`, `/mode agent`.
-4. **M4 — запись, shell, запасной режим:** `write_file`, `edit_file` с diff, `run_command`, `http_fetch`, `TextJsonToolCallMode` + `ToolCallModeResolver`.
+4. ✅ **M4 — запись, shell, запасной режим:** `write_file`, `edit_file` с diff, `run_command`, `http_fetch`, `TextJsonToolCallMode` + `ToolCallModeResolver`.
 5. **M5 — MCP:** `spring-ai-starter-mcp-client`, stdio + Streamable HTTP, префиксы имён, `/tools`.
 6. **M6 — native image.**
 
