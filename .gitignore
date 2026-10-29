@@ -3,6 +3,8 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 .idea/
 *.iml
-out/
+# IntelliJ output directories only, not source packages named "out"
+/out/
+/harness-*/out/
 .DS_Store
 .env
