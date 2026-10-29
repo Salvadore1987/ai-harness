@@ -27,7 +27,7 @@ class TextJsonToolCallModeTest {
         "type" : "object",
         "properties" : { "path" : { "type" : "string" } },
         "required" : [ "path" ]
-      }""", ToolSource.BUILTIN));
+      }""", ToolSource.BUILTIN, null));
 
   private final TextJsonToolCallMode mode = new TextJsonToolCallMode(
       Mappers.getMapper(ChatMessageSpringAiMapper.class), new ToolBlockParser());

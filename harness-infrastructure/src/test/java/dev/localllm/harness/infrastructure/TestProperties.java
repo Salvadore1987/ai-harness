@@ -37,6 +37,7 @@ public final class TestProperties {
         new HarnessProperties.Tools(MAX_OUTPUT_CHARS, "/bin/zsh", Duration.ofSeconds(120),
             Duration.ofSeconds(30)),
         Map.of("codellama", HarnessProperties.ToolCallModeType.TEXT_JSON),
-        HarnessProperties.ToolCallModeType.NATIVE);
+        HarnessProperties.ToolCallModeType.NATIVE,
+        new HarnessProperties.Mcp(Map.of()));
   }
 }

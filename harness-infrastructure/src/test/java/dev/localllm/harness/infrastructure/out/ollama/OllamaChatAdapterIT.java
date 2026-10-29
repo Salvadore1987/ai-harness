@@ -407,7 +407,7 @@ class OllamaChatAdapterIT {
         "read_file", "Read a file",
         "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"}},"
             + "\"required\":[\"path\"]}",
-        ToolSource.BUILTIN)));
+        ToolSource.BUILTIN, null)));
   }
 
   private static ChatRequest request(boolean thinking) {

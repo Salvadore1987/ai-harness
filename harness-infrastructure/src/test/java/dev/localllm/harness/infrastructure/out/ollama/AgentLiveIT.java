@@ -34,8 +34,12 @@ import dev.localllm.harness.application.service.ConversationCompactor;
 import dev.localllm.harness.application.service.SessionRegistrar;
 import dev.localllm.harness.application.service.TurnCancellation;
 import dev.localllm.harness.infrastructure.TestProperties;
+import dev.localllm.harness.infrastructure.TestTerminals;
 import dev.localllm.harness.infrastructure.config.HarnessProperties;
 import dev.localllm.harness.infrastructure.config.HarnessProperties.ToolCallModeType;
+import dev.localllm.harness.infrastructure.out.mcp.McpConnector;
+import dev.localllm.harness.infrastructure.out.mcp.McpStartupReporter;
+import dev.localllm.harness.infrastructure.out.mcp.McpTestSupport;
 import dev.localllm.harness.infrastructure.out.tools.FileTools;
 import dev.localllm.harness.infrastructure.out.tools.HttpTools;
 import dev.localllm.harness.infrastructure.out.tools.ShellTools;
@@ -48,7 +52,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * The agent loop on the local {@code qwen3.5:27b} with the real file tools.
  *
  * <p>Started with {@code ./gradlew test -PincludeTags=live}; prints the turn duration of each
- * scenario: native tool calls with and without thinking, the text-json protocol and an edit.
+ * scenario: native tool calls with and without thinking, the text-json protocol, an edit and a
+ * tool of a stdio MCP server.
  */
 @Tag("live")
 class AgentLiveIT {
@@ -118,8 +123,39 @@ class AgentLiveIT {
         .containsPattern("return a \\+ b;|return b \\+ a;").doesNotContain("a * b");
   }
 
+  @Test
+  void execute_AskingForAnMcpTool_CallsItOnTheStdioServer() {
+    // Arrange
+    RecordingTurnOutputPort output = new RecordingTurnOutputPort();
+    McpConnector connector = McpTestSupport.connector(
+        List.of(McpTestSupport.stdioClient("echo", McpTestSupport.echoServer())),
+        new McpStartupReporter(TestTerminals.dumb().terminal()));
+    AgentLoopService service = service(OllamaTestSupport.chatAdapter(BASE_URL), output, connector);
+
+    // Act
+    TurnResult result;
+    try {
+      result = service.execute(command(
+          "Вызови инструмент echo MCP-сервера с текстом «привет» и перескажи ответ.", false));
+    } finally {
+      connector.destroy();
+    }
+
+    // Assert
+    report("mcp", result, output);
+    assertThat(result.status()).isEqualTo(TurnStatus.COMPLETED);
+    assertThat(output.toolCalls()).extracting(ToolCall::name).contains("mcp__echo__echo");
+    assertThat(output.toolResults())
+        .anyMatch(toolResult -> toolResult.output().equals("echo: привет\n\ndone"));
+  }
+
   private AgentLoopService service(OllamaChatAdapter chatAdapter,
       RecordingTurnOutputPort output) {
+    return service(chatAdapter, output, McpTestSupport.noServers());
+  }
+
+  private AgentLoopService service(OllamaChatAdapter chatAdapter,
+      RecordingTurnOutputPort output, McpConnector mcpConnector) {
     InMemoryConversationPort conversation = new InMemoryConversationPort();
     HarnessProperties properties = TestProperties.create(cwd.resolve("home"), BASE_URL, false);
     ContextMeter meter = new ContextMeter(new FixedContextBudgetPort(TestProperties.NUM_CTX),
@@ -130,7 +166,7 @@ class AgentLiveIT {
         new SpringAiToolExecutorAdapter(
             List.of(MethodToolCallbackProvider.builder().toolObjects(new FileTools(),
                 new ShellTools(properties), new HttpTools(properties)).build()),
-            Mappers.getMapper(ToolSpecSpringAiMapper.class), properties),
+            mcpConnector, Mappers.getMapper(ToolSpecSpringAiMapper.class), properties),
         output, new ConversationCompactor(conversation, chatAdapter, meter),
         new TurnCancellation(), new AgentPolicy(10, 2),
         Mappers.getMapper(TurnApplicationMapper.class));

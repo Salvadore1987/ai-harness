@@ -28,8 +28,21 @@ public final class FakeToolExecutorPort implements ToolExecutorPort {
    */
   public FakeToolExecutorPort(String... names) {
     for (String name : names) {
-      tools.add(new ToolSpec(name, "Fake " + name, "{\"type\":\"object\"}", ToolSource.BUILTIN));
+      tools.add(new ToolSpec(
+          name, "Fake " + name, "{\"type\":\"object\"}", ToolSource.BUILTIN, null));
     }
+  }
+
+  /**
+   * Adds a tool of an MCP server.
+   *
+   * @param name tool name
+   * @param server server name
+   * @return this fake
+   */
+  public FakeToolExecutorPort withMcpTool(String name, String server) {
+    tools.add(new ToolSpec(name, "Fake " + name, "{\"type\":\"object\"}", ToolSource.MCP, server));
+    return this;
   }
 
   /**

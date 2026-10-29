@@ -329,7 +329,7 @@ class AgentLoopServiceTest {
 
     // Assert
     assertThat(result).containsExactly(
-        new ToolSummaryResult("read_file", "Fake read_file", ToolSource.BUILTIN));
+        new ToolSummaryResult("read_file", "Fake read_file", ToolSource.BUILTIN, null));
   }
 
   private RunAgentTurnCommand command(String text) {

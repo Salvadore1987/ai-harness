@@ -17,6 +17,17 @@ spring:
         num-ctx: ${harness.context.num-ctx}
         temperature: ${HARNESS_TEMPERATURE:0.2}
         keep-alive: ${HARNESS_KEEP_ALIVE:30m}
+    mcp:
+      client:
+        name: harness
+        type: SYNC
+        # McpConnector connects the servers in the background and registers their tools itself.
+        initialized: false
+        toolcallback:
+          enabled: false
+        request-timeout: ${HARNESS_MCP_REQUEST_TIMEOUT:30s}
+        # Streamable HTTP servers go to config.yml:
+        # streamable-http.connections.<name>: {url: https://host, endpoint: /mcp}
 
 harness:
   model: ${HARNESS_MODEL:qwen3.5:27b}
@@ -43,3 +54,5 @@ harness:
   tool-call-modes:
     "[codellama]": ${HARNESS_TOOL_CALL_MODE_CODELLAMA:text-json}
   default-tool-call-mode: ${HARNESS_DEFAULT_TOOL_CALL_MODE:native}
+  # Stdio MCP servers are read from <home>/mcp.json. Headers of a Streamable HTTP server,
+  # usually set in config.yml: mcp.headers.<name>.Authorization: "Bearer ${GITHUB_TOKEN:}"
