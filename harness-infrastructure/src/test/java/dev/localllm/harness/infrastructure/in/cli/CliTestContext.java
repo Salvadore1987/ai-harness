@@ -15,6 +15,7 @@ import dev.localllm.harness.application.fixture.FakeRunningModelsPort;
 import dev.localllm.harness.application.fixture.FakeSessionCatalogPort;
 import dev.localllm.harness.application.fixture.FakeToolExecutorPort;
 import dev.localllm.harness.application.fixture.FixedContextBudgetPort;
+import dev.localllm.harness.application.fixture.InMemoryAnswerFilePort;
 import dev.localllm.harness.application.fixture.InMemoryConversationPort;
 import dev.localllm.harness.application.fixture.RecordingTurnOutputPort;
 import dev.localllm.harness.application.mapper.TurnApplicationMapper;
@@ -32,6 +33,7 @@ import dev.localllm.harness.application.service.ListRunningModelsQueryService;
 import dev.localllm.harness.application.service.ListSessionsQueryService;
 import dev.localllm.harness.application.service.ListToolsQueryService;
 import dev.localllm.harness.application.service.ResumeSessionService;
+import dev.localllm.harness.application.service.SaveAnswerService;
 import dev.localllm.harness.application.service.SendMessageService;
 import dev.localllm.harness.application.service.SessionRegistrar;
 import dev.localllm.harness.application.service.StartSessionService;
@@ -42,6 +44,7 @@ import dev.localllm.harness.infrastructure.TestProperties;
 import dev.localllm.harness.infrastructure.TestTerminals;
 import dev.localllm.harness.infrastructure.config.DisplayOptions;
 import dev.localllm.harness.infrastructure.config.HarnessProperties;
+import dev.localllm.harness.infrastructure.in.cli.handlers.AnswerErrorHandler;
 import dev.localllm.harness.infrastructure.in.cli.handlers.CliErrorReporter;
 import dev.localllm.harness.infrastructure.in.cli.handlers.PicocliExceptionHandler;
 import dev.localllm.harness.infrastructure.in.cli.handlers.FallbackErrorHandler;
@@ -64,6 +67,7 @@ final class CliTestContext {
   final TestTerminals.Captured terminal = TestTerminals.interactive();
   final FakeChatModelPort chatModel = new FakeChatModelPort();
   final InMemoryConversationPort conversation = new InMemoryConversationPort();
+  final InMemoryAnswerFilePort answerFiles = new InMemoryAnswerFilePort();
   final FakeSessionCatalogPort catalog = new FakeSessionCatalogPort();
   final FixedContextBudgetPort budget = new FixedContextBudgetPort(65536);
   final RecordingTurnOutputPort output = new RecordingTurnOutputPort();
@@ -78,7 +82,7 @@ final class CliTestContext {
   final ReplCliMapper mapper = Mappers.getMapper(ReplCliMapper.class);
   final CliErrorReporter reporter = new CliErrorReporter(
       List.of(new LlmErrorHandler(), new ModelErrorHandler(), new SessionErrorHandler(),
-          new ToolErrorHandler(), new FallbackErrorHandler()),
+          new ToolErrorHandler(), new AnswerErrorHandler(), new FallbackErrorHandler()),
       terminal.terminal());
   final HarnessProperties properties =
       TestProperties.create(Path.of("build/harness-home"), "http://localhost:11434", false);
@@ -102,6 +106,7 @@ final class CliTestContext {
         new ListSessionsQueryService(catalog, applicationMapper),
         new CompactSessionService(compactor, applicationMapper),
         new GetContextUsageQueryService(conversation, meter, applicationMapper),
+        new SaveAnswerService(conversation, answerFiles, CLOCK, applicationMapper),
         mapper, terminal.terminal());
   }
 

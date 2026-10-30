@@ -23,6 +23,10 @@ public class TerminalConfig {
    * order and an explicit list end up at {@code exec}, which starts {@code stty} processes and
    * costs about 300 ms; only a single named provider avoids it.
    *
+   * <p>The terminal is bound to stdout. By default JLine switches to stderr when only stdout is
+   * redirected, so {@code harness -p ... > answer.md} would print the answer to the console and
+   * leave the file empty.
+   *
    * @return the terminal
    */
   @Bean(destroyMethod = "close")
@@ -32,6 +36,7 @@ public class TerminalConfig {
           .name("harness")
           .system(true)
           .provider(TerminalBuilder.PROP_PROVIDER_FFM)
+          .systemOutput(TerminalBuilder.SystemOutput.SysOut)
           .dumb(true)
           .build();
     } catch (IOException e) {

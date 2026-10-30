@@ -11,6 +11,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mapstruct.factory.Mappers;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 
+import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.ToolCall;
 import dev.localllm.harness.application.model.ToolResult;
 import dev.localllm.harness.infrastructure.TestProperties;
@@ -152,6 +153,6 @@ class HttpToolsTest {
 
   private ToolResult fetch(String url) {
     return executor.execute(
-        new ToolCall("c1", "http_fetch", "{\"url\":\"" + url + "\"}"), cwd);
+        new ToolCall("c1", "http_fetch", "{\"url\":\"" + url + "\"}"), SessionId.newId(), cwd);
   }
 }

@@ -18,7 +18,8 @@ public class SlashCommandDispatcher {
 
   /** Names of the supported commands, used for completion. */
   public static final List<String> COMMANDS = List.of("/help", "/exit", "/clear", "/sessions",
-      "/resume", "/compact", "/context", "/model", "/list", "/ps", "/think", "/mode", "/tools");
+      "/resume", "/compact", "/context", "/save", "/model", "/list", "/ps", "/think", "/mode",
+      "/tools");
 
   private static final String HELP = """
       /help                 список команд
@@ -28,6 +29,7 @@ public class SlashCommandDispatcher {
       /resume [id]          продолжить сессию; без id — последнюю
       /compact              сжать историю: старая часть заменяется сводкой
       /context              сколько контекста занято
+      /save [файл]          сохранить последний ответ в файл дословно, без перегенерации
       /model [имя]          сменить модель; без имени — список установленных
       /list [префикс]       установленные модели
       /ps [префикс]         модели, загруженные в память Ollama
@@ -63,6 +65,7 @@ public class SlashCommandDispatcher {
         Map.entry("/resume", sessionCommands::resume),
         Map.entry("/compact", (session, argument) -> sessionCommands.compact(session)),
         Map.entry("/context", (session, argument) -> sessionCommands.context(session)),
+        Map.entry("/save", sessionCommands::save),
         Map.entry("/model", modelCommands::model),
         Map.entry("/list", modelCommands::list),
         Map.entry("/ps", (session, argument) -> modelCommands.ps(argument)),

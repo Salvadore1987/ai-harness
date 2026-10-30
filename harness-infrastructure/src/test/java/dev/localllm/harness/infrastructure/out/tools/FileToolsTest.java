@@ -11,6 +11,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mapstruct.factory.Mappers;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 
+import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.ToolCall;
 import dev.localllm.harness.application.model.ToolResult;
 import dev.localllm.harness.application.model.ToolSource;
@@ -338,7 +339,7 @@ class FileToolsTest {
   }
 
   private ToolResult call(String name, String argumentsJson) {
-    return executor.execute(new ToolCall("c1", name, argumentsJson), cwd);
+    return executor.execute(new ToolCall("c1", name, argumentsJson), SessionId.newId(), cwd);
   }
 
   private void write(String relative, String content) throws IOException {

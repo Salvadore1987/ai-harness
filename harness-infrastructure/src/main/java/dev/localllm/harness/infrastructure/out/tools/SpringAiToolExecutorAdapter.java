@@ -16,6 +16,7 @@ import org.springframework.ai.tool.execution.ToolExecutionException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.function.SingletonSupplier;
 
+import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.ToolCall;
 import dev.localllm.harness.application.model.ToolResult;
 import dev.localllm.harness.application.model.ToolSource;
@@ -33,7 +34,8 @@ import dev.localllm.harness.infrastructure.out.tools.mapper.ToolSpecSpringAiMapp
  *
  * <p>The MCP tools join the registry when it is first used, which waits for the servers that
  * connect in the background; built-in tools come first and keep their names. The working
- * directory reaches the tools through the {@link ToolContext} under {@link #WORKING_DIRECTORY}.
+ * directory and the session reach the tools through the {@link ToolContext} under
+ * {@link #WORKING_DIRECTORY} and {@link #SESSION_ID}.
  * Failures become error results with the message of the cause; the output is cut to
  * {@code harness.tools.max-output-chars}.
  */
@@ -42,6 +44,9 @@ public class SpringAiToolExecutorAdapter implements ToolExecutorPort {
 
   /** Tool context key of the working directory, a {@link Path}. */
   public static final String WORKING_DIRECTORY = "workingDirectory";
+
+  /** Tool context key of the session, a {@link SessionId}. */
+  public static final String SESSION_ID = "sessionId";
 
   private static final Logger log = LoggerFactory.getLogger(SpringAiToolExecutorAdapter.class);
   private static final String ERROR_PREFIX = "Error: ";
@@ -87,7 +92,7 @@ public class SpringAiToolExecutorAdapter implements ToolExecutorPort {
   }
 
   @Override
-  public ToolResult execute(ToolCall call, Path workingDirectory) {
+  public ToolResult execute(ToolCall call, SessionId sessionId, Path workingDirectory) {
     ToolCallback callback = registry.obtain().callbacks().get(call.name());
     if (callback == null) {
       return ToolResult.rejected(call, ERROR_PREFIX + "unknown tool " + call.name());
@@ -97,7 +102,7 @@ public class SpringAiToolExecutorAdapter implements ToolExecutorPort {
     boolean error = false;
     try {
       output = callback.call(call.argumentsJson(),
-          new ToolContext(Map.of(WORKING_DIRECTORY, workingDirectory)));
+          new ToolContext(Map.of(WORKING_DIRECTORY, workingDirectory, SESSION_ID, sessionId)));
     } catch (ToolExecutionException e) {
       error = true;
       output = ERROR_PREFIX + describe(e.getCause() == null ? e : e.getCause());

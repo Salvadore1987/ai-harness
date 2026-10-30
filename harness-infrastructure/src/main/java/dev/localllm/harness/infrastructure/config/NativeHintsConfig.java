@@ -12,6 +12,7 @@ import dev.localllm.harness.infrastructure.out.mcp.dto.McpServersFile;
 import dev.localllm.harness.infrastructure.out.memory.dto.JsonlLine;
 import dev.localllm.harness.infrastructure.out.memory.dto.JsonlToolCall;
 import dev.localllm.harness.infrastructure.out.ollama.dto.OllamaRunningModels;
+import dev.localllm.harness.infrastructure.out.tools.AnswerTools;
 import dev.localllm.harness.infrastructure.out.tools.FileTools;
 import dev.localllm.harness.infrastructure.out.tools.HttpTools;
 import dev.localllm.harness.infrastructure.out.tools.PlainTextResultConverter;
@@ -41,7 +42,8 @@ public class NativeHintsConfig {
 
     /** Spring AI calls the {@code @Tool} methods and creates their result converter. */
     private static final Class<?>[] TOOLS = {
-        FileTools.class, ShellTools.class, HttpTools.class, PlainTextResultConverter.class,
+        FileTools.class, ShellTools.class, HttpTools.class, AnswerTools.class,
+        PlainTextResultConverter.class,
     };
 
     /** Read and written by Jackson. */

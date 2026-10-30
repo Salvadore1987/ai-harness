@@ -39,6 +39,35 @@ class SlashCommandDispatcherTest {
   }
 
   @Test
+  void dispatch_SaveWithFile_WritesLatestAnswerAsStored() {
+    // Arrange
+    context.conversation.append(session.getSessionId(), new ChatMessage(Role.USER, "Вопрос"));
+    context.conversation.append(session.getSessionId(),
+        new ChatMessage(Role.ASSISTANT, "**Ответ** как есть\n"));
+
+    // Act
+    SlashOutcome outcome = dispatcher.dispatch("/save notes/answer.md", session);
+
+    // Assert
+    assertThat(outcome).isEqualTo(SlashOutcome.CONTINUE);
+    assertThat(context.answerFiles.files())
+        .containsEntry(CliTestContext.CWD.resolve("notes/answer.md"), "**Ответ** как есть\n");
+    assertThat(context.terminal.plainText())
+        .contains("Ответ сохранён в /work/project/notes/answer.md (19 симв.)");
+  }
+
+  @Test
+  void dispatch_SaveWithoutAnswers_ReportsAndContinues() {
+    // Act
+    SlashOutcome outcome = dispatcher.dispatch("/save", session);
+
+    // Assert
+    assertThat(outcome).isEqualTo(SlashOutcome.CONTINUE);
+    assertThat(context.answerFiles.files()).isEmpty();
+    assertThat(context.terminal.plainText()).contains("✗ Сохранять нечего");
+  }
+
+  @Test
   void dispatch_ModelWithoutArgument_ListsModelsMarkingTheCurrentOne() {
     // Act
     dispatcher.dispatch("/model", session);

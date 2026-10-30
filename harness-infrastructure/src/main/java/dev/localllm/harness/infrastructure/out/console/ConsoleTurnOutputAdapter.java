@@ -38,8 +38,7 @@ public class ConsoleTurnOutputAdapter implements TurnOutputPort {
 
   private static final double CHARS_PER_TOKEN = 3.5;
   private static final String THINKING_PREFIX = "✻ ";
-  private static final AttributedStyle THINKING_STYLE =
-      AttributedStyle.DEFAULT.foreground(AttributedStyle.BRIGHT).faint();
+  private static final AttributedStyle THINKING_STYLE = AttributedStyle.DEFAULT.italic();
   private static final AttributedStyle WARNING_STYLE =
       AttributedStyle.DEFAULT.foreground(AttributedStyle.YELLOW);
   private static final AttributedStyle ERROR_STYLE =

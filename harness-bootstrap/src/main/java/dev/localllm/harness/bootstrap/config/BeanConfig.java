@@ -17,10 +17,12 @@ import dev.localllm.harness.application.port.in.ListSessionsQuery;
 import dev.localllm.harness.application.port.in.ListToolsQuery;
 import dev.localllm.harness.application.port.in.ResumeSessionUseCase;
 import dev.localllm.harness.application.port.in.RunAgentTurnUseCase;
+import dev.localllm.harness.application.port.in.SaveAnswerUseCase;
 import dev.localllm.harness.application.port.in.SendMessageUseCase;
 import dev.localllm.harness.application.port.in.StartSessionUseCase;
 import dev.localllm.harness.application.port.in.SwitchModelUseCase;
 import dev.localllm.harness.application.port.in.ToggleThinkingUseCase;
+import dev.localllm.harness.application.port.out.AnswerFilePort;
 import dev.localllm.harness.application.port.out.ChatModelPort;
 import dev.localllm.harness.application.port.out.ContextBudgetPort;
 import dev.localllm.harness.application.port.out.ConversationPort;
@@ -40,6 +42,7 @@ import dev.localllm.harness.application.service.ListRunningModelsQueryService;
 import dev.localllm.harness.application.service.ListSessionsQueryService;
 import dev.localllm.harness.application.service.ListToolsQueryService;
 import dev.localllm.harness.application.service.ResumeSessionService;
+import dev.localllm.harness.application.service.SaveAnswerService;
 import dev.localllm.harness.application.service.SendMessageService;
 import dev.localllm.harness.application.service.SessionRegistrar;
 import dev.localllm.harness.application.service.StartSessionService;
@@ -268,6 +271,21 @@ public class BeanConfig {
   public CompactSessionUseCase compactSessionUseCase(
       ConversationCompactor compactor, TurnApplicationMapper mapper) {
     return new CompactSessionService(compactor, mapper);
+  }
+
+  /**
+   * Answer saving use case.
+   *
+   * @param conversationPort conversation history storage
+   * @param answerFilePort writes the file
+   * @param clock source of generated file names
+   * @param mapper result mapper
+   * @return the use case
+   */
+  @Bean
+  public SaveAnswerUseCase saveAnswerUseCase(ConversationPort conversationPort,
+      AnswerFilePort answerFilePort, Clock clock, TurnApplicationMapper mapper) {
+    return new SaveAnswerService(conversationPort, answerFilePort, clock, mapper);
   }
 
   /**
