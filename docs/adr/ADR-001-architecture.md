@@ -51,7 +51,9 @@ provided-зависимости, 3.2.4). ArchUnit разрешает `org.spring
 Совместимость стартера со Spring Boot 4 не гарантирована. Используется голый `picocli`:
 `HarnessCommand` — Spring-бин с внедрением через конструктор, `PicocliRunner`
 (`CommandLineRunner` + `ExitCodeGenerator`) передаёт готовый экземпляр в `new CommandLine(...)`.
-Собственная `IFactory` понадобится только с появлением подкоманд.
+Собственная `IFactory` понадобится только с появлением подкоманд. *Обновление:* подкоманды
+`list` и `ps` подключены без неё, готовыми бинами через `addSubcommand` — см.
+[ADR-003](ADR-003-model-listing-commands.md).
 
 ### 6. Неприменимые пункты чеклиста 5.1 (локальный CLI, не сервис)
 

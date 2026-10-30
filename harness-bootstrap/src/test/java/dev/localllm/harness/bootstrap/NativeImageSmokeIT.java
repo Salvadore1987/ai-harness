@@ -108,6 +108,26 @@ class NativeImageSmokeIT {
   }
 
   @Test
+  void subcommands_ListAndPs_PrintInstalledAndLoadedModels() {
+    // Arrange
+    ollama.stubFor(get("/api/ps").willReturn(okJson("{\"models\":[{\"name\":\"" + MODEL
+        + "\",\"size\":19744124896,\"size_vram\":19744124896,\"context_length\":32768,"
+        + "\"expires_at\":\"2318-01-01T00:00:00.5+05:00\"}]}")));
+
+    // Act
+    Result list = run(List.of("list"), "");
+    Result ps = run(List.of("ps"), "");
+    Result repl = run(List.of(), "/list\n/ps\n/exit\n");
+
+    // Assert
+    assertThat(list.exitCode()).isZero();
+    assertThat(list.stdout()).contains("* " + MODEL, "thinking tools");
+    assertThat(ps.exitCode()).isZero();
+    assertThat(ps.stdout()).contains(MODEL, "20 GB", "100% GPU", "32768", "бессрочно");
+    assertThat(repl.stdout()).contains("ВОЗМОЖНОСТИ", "ВЫГРУЗКА");
+  }
+
+  @Test
   void printMode_ChatTurn_AnswersAndStoresSession() throws IOException {
     // Act
     Result result = run(List.of("-p", "привет"), "");

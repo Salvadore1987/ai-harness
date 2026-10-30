@@ -27,7 +27,8 @@ import dev.localllm.harness.infrastructure.in.cli.mapper.ReplCliMapper;
  * [--no-think] [--verbose] [-p PROMPT]}.
  *
  * <p>Without {@code -p} it opens the REPL; with {@code -p} it runs one turn, prints the answer
- * and exits with 0 on success or 1 on failure.
+ * and exits with 0 on success or 1 on failure. The subcommands {@link ListModelsCommand} and
+ * {@link RunningModelsCommand} are attached by {@link PicocliRunner}.
  */
 @Component
 @Command(

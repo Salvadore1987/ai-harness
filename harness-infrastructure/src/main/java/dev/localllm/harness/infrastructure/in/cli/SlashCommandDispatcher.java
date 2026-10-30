@@ -18,7 +18,7 @@ public class SlashCommandDispatcher {
 
   /** Names of the supported commands, used for completion. */
   public static final List<String> COMMANDS = List.of("/help", "/exit", "/clear", "/sessions",
-      "/resume", "/compact", "/context", "/model", "/think", "/mode", "/tools");
+      "/resume", "/compact", "/context", "/model", "/list", "/ps", "/think", "/mode", "/tools");
 
   private static final String HELP = """
       /help                 список команд
@@ -29,6 +29,8 @@ public class SlashCommandDispatcher {
       /compact              сжать историю: старая часть заменяется сводкой
       /context              сколько контекста занято
       /model [имя]          сменить модель; без имени — список установленных
+      /list [префикс]       установленные модели
+      /ps [префикс]         модели, загруженные в память Ollama
       /think [on|off]       режим размышлений; без аргумента — текущее состояние
       /mode [chat|agent]    режим: chat — ответ без инструментов, agent — модель читает файлы
       /tools [префикс]      инструменты агента
@@ -62,6 +64,8 @@ public class SlashCommandDispatcher {
         Map.entry("/compact", (session, argument) -> sessionCommands.compact(session)),
         Map.entry("/context", (session, argument) -> sessionCommands.context(session)),
         Map.entry("/model", modelCommands::model),
+        Map.entry("/list", modelCommands::list),
+        Map.entry("/ps", (session, argument) -> modelCommands.ps(argument)),
         Map.entry("/think", modelCommands::think),
         Map.entry("/mode", agentCommands::mode),
         Map.entry("/tools", (session, argument) -> agentCommands.tools(argument)));

@@ -2,12 +2,16 @@ package dev.localllm.harness.infrastructure.in.cli;
 
 import java.nio.file.Path;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import org.mapstruct.factory.Mappers;
+import picocli.CommandLine;
 
 import dev.localllm.harness.application.fixture.FakeChatModelPort;
 import dev.localllm.harness.application.fixture.FakeModelCatalogPort;
+import dev.localllm.harness.application.fixture.FakeRunningModelsPort;
 import dev.localllm.harness.application.fixture.FakeSessionCatalogPort;
 import dev.localllm.harness.application.fixture.FakeToolExecutorPort;
 import dev.localllm.harness.application.fixture.FixedContextBudgetPort;
@@ -24,6 +28,7 @@ import dev.localllm.harness.application.service.ContextMeter;
 import dev.localllm.harness.application.service.ConversationCompactor;
 import dev.localllm.harness.application.service.GetContextUsageQueryService;
 import dev.localllm.harness.application.service.ListModelsQueryService;
+import dev.localllm.harness.application.service.ListRunningModelsQueryService;
 import dev.localllm.harness.application.service.ListSessionsQueryService;
 import dev.localllm.harness.application.service.ListToolsQueryService;
 import dev.localllm.harness.application.service.ResumeSessionService;
@@ -38,6 +43,7 @@ import dev.localllm.harness.infrastructure.TestTerminals;
 import dev.localllm.harness.infrastructure.config.DisplayOptions;
 import dev.localllm.harness.infrastructure.config.HarnessProperties;
 import dev.localllm.harness.infrastructure.in.cli.handlers.CliErrorReporter;
+import dev.localllm.harness.infrastructure.in.cli.handlers.PicocliExceptionHandler;
 import dev.localllm.harness.infrastructure.in.cli.handlers.FallbackErrorHandler;
 import dev.localllm.harness.infrastructure.in.cli.handlers.LlmErrorHandler;
 import dev.localllm.harness.infrastructure.in.cli.handlers.ModelErrorHandler;
@@ -52,6 +58,8 @@ final class CliTestContext {
 
   static final Path CWD = Path.of("/work/project");
   static final ContextPolicy POLICY = new ContextPolicy(0.8, 0.25, 4.0);
+  /** Two minutes before {@link FakeRunningModelsPort#QWEN} is unloaded. */
+  static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-29T16:30:51Z"), ZoneOffset.UTC);
 
   final TestTerminals.Captured terminal = TestTerminals.interactive();
   final FakeChatModelPort chatModel = new FakeChatModelPort();
@@ -65,6 +73,8 @@ final class CliTestContext {
   final DisplayOptions displayOptions = new DisplayOptions();
   final FakeModelCatalogPort models =
       new FakeModelCatalogPort(FakeModelCatalogPort.QWEN, FakeModelCatalogPort.CODELLAMA);
+  final FakeRunningModelsPort runningModels =
+      new FakeRunningModelsPort(FakeRunningModelsPort.QWEN);
   final ReplCliMapper mapper = Mappers.getMapper(ReplCliMapper.class);
   final CliErrorReporter reporter = new CliErrorReporter(
       List.of(new LlmErrorHandler(), new ModelErrorHandler(), new SessionErrorHandler(),
@@ -99,8 +109,22 @@ final class CliTestContext {
     return new ModelSlashCommands(
         new SwitchModelService(models, applicationMapper),
         new ToggleThinkingService(models, applicationMapper),
+        modelListPrinter(), mapper, terminal.terminal());
+  }
+
+  ModelListPrinter modelListPrinter() {
+    return new ModelListPrinter(
         new ListModelsQueryService(models, applicationMapper),
-        mapper, terminal.terminal());
+        new ListRunningModelsQueryService(runningModels, applicationMapper),
+        mapper, terminal.terminal(), CLOCK);
+  }
+
+  /** The command line as {@link PicocliRunner} builds it, with the subcommands. */
+  CommandLine commandLine() {
+    return new CommandLine(command())
+        .addSubcommand(new ListModelsCommand(modelListPrinter(), properties))
+        .addSubcommand(new RunningModelsCommand(modelListPrinter()))
+        .setExecutionExceptionHandler(new PicocliExceptionHandler(reporter));
   }
 
   AgentSlashCommands agentCommands() {

@@ -9,13 +9,17 @@ import org.mapstruct.factory.Mappers;
 import dev.localllm.harness.application.dto.command.SwitchModelCommand;
 import dev.localllm.harness.application.dto.command.ToggleThinkingCommand;
 import dev.localllm.harness.application.dto.query.ListModelsCriteria;
+import dev.localllm.harness.application.dto.query.ListRunningModelsCriteria;
 import dev.localllm.harness.application.dto.result.ModelSummaryResult;
+import dev.localllm.harness.application.dto.result.RunningModelResult;
 import dev.localllm.harness.application.dto.result.ThinkingToggleResult;
 import dev.localllm.harness.application.exception.ModelNotFoundException;
 import dev.localllm.harness.application.exception.ThinkingNotSupportedException;
 import dev.localllm.harness.application.fixture.FakeModelCatalogPort;
+import dev.localllm.harness.application.fixture.FakeRunningModelsPort;
 import dev.localllm.harness.application.mapper.TurnApplicationMapper;
 import dev.localllm.harness.application.model.ModelInfo;
+import dev.localllm.harness.application.model.RunningModelInfo;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -111,5 +115,37 @@ class ModelServicesTest {
     // Assert
     assertThat(result).extracting(ModelSummaryResult::name)
         .containsExactly("qwen2.5-coder:7b", "qwen3.5:27b");
+  }
+
+  @Test
+  void listRunningModels_WithPrefix_ReturnsMatchingLoadedModelsSortedByName() {
+    // Arrange
+    RunningModelInfo coder = new RunningModelInfo("qwen2.5-coder:7b", 5_000_000_000L, 0L, null,
+        null);
+    RunningModelInfo llama = new RunningModelInfo("llama3:8b", 6_000_000_000L, 0L, 8192, null);
+    ListRunningModelsQueryService service = new ListRunningModelsQueryService(
+        new FakeRunningModelsPort(FakeRunningModelsPort.QWEN, llama, coder), mapper);
+
+    // Act
+    List<RunningModelResult> result = service.execute(new ListRunningModelsCriteria("qwen"));
+
+    // Assert
+    assertThat(result).containsExactly(
+        new RunningModelResult("qwen2.5-coder:7b", 5_000_000_000L, 0L, null, null),
+        new RunningModelResult("qwen3.5:27b", 19_744_124_896L, 19_744_124_896L, 32768,
+            FakeRunningModelsPort.QWEN.expiresAt()));
+  }
+
+  @Test
+  void listRunningModels_WhenNothingLoaded_ReturnsEmptyList() {
+    // Arrange
+    ListRunningModelsQueryService service =
+        new ListRunningModelsQueryService(new FakeRunningModelsPort(), mapper);
+
+    // Act
+    List<RunningModelResult> result = service.execute(new ListRunningModelsCriteria(""));
+
+    // Assert
+    assertThat(result).isEmpty();
   }
 }
