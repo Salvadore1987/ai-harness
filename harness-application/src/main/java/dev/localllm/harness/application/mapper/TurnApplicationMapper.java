@@ -7,6 +7,7 @@ import dev.localllm.harness.application.dto.command.ToggleThinkingCommand;
 import dev.localllm.harness.application.dto.result.CompactionResult;
 import dev.localllm.harness.application.dto.result.ContextUsageResult;
 import dev.localllm.harness.application.dto.result.ModelSummaryResult;
+import dev.localllm.harness.application.dto.result.RunningModelResult;
 import dev.localllm.harness.application.dto.result.SessionResult;
 import dev.localllm.harness.application.dto.result.SessionSummaryResult;
 import dev.localllm.harness.application.dto.result.ThinkingToggleResult;
@@ -17,6 +18,7 @@ import dev.localllm.harness.application.model.CompactionOutcome;
 import dev.localllm.harness.application.model.ContextUsage;
 import dev.localllm.harness.application.model.ModelCapability;
 import dev.localllm.harness.application.model.ModelInfo;
+import dev.localllm.harness.application.model.RunningModelInfo;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.SessionInfo;
 import dev.localllm.harness.application.model.ToolSpec;
@@ -50,6 +52,14 @@ public interface TurnApplicationMapper {
       target = "toolsSupported",
       expression = "java(model.capabilities().contains(ModelCapability.TOOLS))")
   ModelSummaryResult toModelSummary(ModelInfo model);
+
+  /**
+   * Converts a loaded model into its result.
+   *
+   * @param model loaded model
+   * @return loaded model result
+   */
+  RunningModelResult toRunningModelResult(RunningModelInfo model);
 
   /**
    * Wraps a session identifier into the session result.

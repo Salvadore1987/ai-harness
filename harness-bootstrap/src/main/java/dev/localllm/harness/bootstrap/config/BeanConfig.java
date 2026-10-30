@@ -12,6 +12,7 @@ import dev.localllm.harness.application.port.in.CancelTurnUseCase;
 import dev.localllm.harness.application.port.in.CompactSessionUseCase;
 import dev.localllm.harness.application.port.in.GetContextUsageQuery;
 import dev.localllm.harness.application.port.in.ListModelsQuery;
+import dev.localllm.harness.application.port.in.ListRunningModelsQuery;
 import dev.localllm.harness.application.port.in.ListSessionsQuery;
 import dev.localllm.harness.application.port.in.ListToolsQuery;
 import dev.localllm.harness.application.port.in.ResumeSessionUseCase;
@@ -24,6 +25,7 @@ import dev.localllm.harness.application.port.out.ChatModelPort;
 import dev.localllm.harness.application.port.out.ContextBudgetPort;
 import dev.localllm.harness.application.port.out.ConversationPort;
 import dev.localllm.harness.application.port.out.ModelCatalogPort;
+import dev.localllm.harness.application.port.out.RunningModelsPort;
 import dev.localllm.harness.application.port.out.SessionCatalogPort;
 import dev.localllm.harness.application.port.out.ToolExecutorPort;
 import dev.localllm.harness.application.port.out.TurnOutputPort;
@@ -34,6 +36,7 @@ import dev.localllm.harness.application.service.ContextMeter;
 import dev.localllm.harness.application.service.ConversationCompactor;
 import dev.localllm.harness.application.service.GetContextUsageQueryService;
 import dev.localllm.harness.application.service.ListModelsQueryService;
+import dev.localllm.harness.application.service.ListRunningModelsQueryService;
 import dev.localllm.harness.application.service.ListSessionsQueryService;
 import dev.localllm.harness.application.service.ListToolsQueryService;
 import dev.localllm.harness.application.service.ResumeSessionService;
@@ -292,6 +295,19 @@ public class BeanConfig {
   public ListModelsQuery listModelsQuery(
       ModelCatalogPort modelCatalogPort, TurnApplicationMapper mapper) {
     return new ListModelsQueryService(modelCatalogPort, mapper);
+  }
+
+  /**
+   * Loaded models query.
+   *
+   * @param runningModelsPort models loaded by the model server
+   * @param mapper result mapper
+   * @return the query
+   */
+  @Bean
+  public ListRunningModelsQuery listRunningModelsQuery(
+      RunningModelsPort runningModelsPort, TurnApplicationMapper mapper) {
+    return new ListRunningModelsQueryService(runningModelsPort, mapper);
   }
 
   /**

@@ -4,6 +4,7 @@ import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
 
+import dev.localllm.harness.application.exception.LlmUnavailableException;
 import dev.localllm.harness.application.model.ChatChunk;
 import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.Role;
@@ -47,6 +48,56 @@ class SlashCommandDispatcherTest {
         .contains("* qwen3.5:27b")
         .contains("  codellama:7b-instruct")
         .contains("thinking tools");
+  }
+
+  @Test
+  void dispatch_List_PrintsHeaderAndInstalledModelsMarkingTheCurrentOne() {
+    // Act
+    SlashOutcome outcome = dispatcher.dispatch("/list", session);
+
+    // Assert
+    assertThat(outcome).isEqualTo(SlashOutcome.CONTINUE);
+    assertThat(context.terminal.plainText())
+        .contains("МОДЕЛЬ", "ВОЗМОЖНОСТИ")
+        .contains("* qwen3.5:27b")
+        .contains("  codellama:7b-instruct");
+  }
+
+  @Test
+  void dispatch_ListWithPrefix_PrintsOnlyMatchingModels() {
+    // Act
+    dispatcher.dispatch("/list codellama", session);
+
+    // Assert
+    assertThat(context.terminal.plainText())
+        .contains("codellama:7b-instruct")
+        .doesNotContain("qwen3.5:27b");
+  }
+
+  @Test
+  void dispatch_Ps_PrintsLoadedModelWithSizeProcessorContextAndUnloadTime() {
+    // Act
+    SlashOutcome outcome = dispatcher.dispatch("/ps", session);
+
+    // Assert
+    assertThat(outcome).isEqualTo(SlashOutcome.CONTINUE);
+    assertThat(context.terminal.plainText())
+        .contains("МОДЕЛЬ", "ПРОЦЕССОР", "ВЫГРУЗКА")
+        .contains("qwen3.5:27b", "20 GB", "100% GPU", "32768", "через 2 мин");
+  }
+
+  @Test
+  void dispatch_PsWhenOllamaDown_ReportsAndContinues() {
+    // Arrange
+    context.runningModels.failWith(
+        new LlmUnavailableException("http://localhost:11434", new IllegalStateException()));
+
+    // Act
+    SlashOutcome outcome = dispatcher.dispatch("/ps", session);
+
+    // Assert
+    assertThat(outcome).isEqualTo(SlashOutcome.CONTINUE);
+    assertThat(context.terminal.plainText()).contains("Ollama недоступна");
   }
 
   @Test

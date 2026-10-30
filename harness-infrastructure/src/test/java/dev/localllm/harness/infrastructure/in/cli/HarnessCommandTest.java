@@ -179,6 +179,42 @@ class HarnessCommandTest {
   }
 
   @Test
+  void execute_ListSubcommand_PrintsInstalledModelsMarkingDefaultAndExitsWithZero() {
+    // Act
+    int exitCode = context.commandLine().execute("list");
+
+    // Assert
+    assertThat(exitCode).isZero();
+    assertThat(context.terminal.plainText())
+        .contains("* qwen3.5:27b", "  codellama:7b-instruct");
+    assertThat(context.chatModel.requests()).isEmpty();
+  }
+
+  @Test
+  void execute_PsSubcommand_PrintsLoadedModelsAndExitsWithZero() {
+    // Act
+    int exitCode = context.commandLine().execute("ps");
+
+    // Assert
+    assertThat(exitCode).isZero();
+    assertThat(context.terminal.plainText()).contains("qwen3.5:27b", "100% GPU");
+  }
+
+  @Test
+  void execute_PsSubcommandWhenOllamaDown_ReportsAndExitsWithOne() {
+    // Arrange
+    context.runningModels.failWith(
+        new LlmUnavailableException("http://localhost:11434", new IllegalStateException()));
+
+    // Act
+    int exitCode = context.commandLine().execute("ps");
+
+    // Assert
+    assertThat(exitCode).isOne();
+    assertThat(context.terminal.plainText()).contains("Ollama недоступна");
+  }
+
+  @Test
   void normalize_WithEscapedNewlines_JoinsLinesAndTrims() {
     // Act
     String input = ReplRunner.normalize("  first\\\nsecond  ");

@@ -13,6 +13,7 @@ import dev.localllm.harness.application.dto.command.SwitchModelCommand;
 import dev.localllm.harness.application.dto.command.ToggleThinkingCommand;
 import dev.localllm.harness.application.dto.query.ContextUsageCriteria;
 import dev.localllm.harness.application.dto.query.ListModelsCriteria;
+import dev.localllm.harness.application.dto.query.ListRunningModelsCriteria;
 import dev.localllm.harness.application.dto.query.ListSessionsCriteria;
 import dev.localllm.harness.application.dto.query.ListToolsCriteria;
 import dev.localllm.harness.infrastructure.in.cli.ReplSession;
@@ -114,6 +115,15 @@ public interface ReplCliMapper {
    */
   @Mapping(target = "namePrefix", source = "namePrefix")
   ListModelsCriteria toListModelsCriteria(String namePrefix);
+
+  /**
+   * Builds the loaded model list criteria.
+   *
+   * @param namePrefix name prefix, empty for all loaded models
+   * @return list criteria
+   */
+  @Mapping(target = "namePrefix", source = "namePrefix")
+  ListRunningModelsCriteria toListRunningModelsCriteria(String namePrefix);
 
   /**
    * Builds the session list criteria for the working directory.

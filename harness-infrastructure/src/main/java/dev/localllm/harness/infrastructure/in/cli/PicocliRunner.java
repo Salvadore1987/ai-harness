@@ -19,6 +19,8 @@ import dev.localllm.harness.infrastructure.in.cli.handlers.PicocliExceptionHandl
 public class PicocliRunner implements CommandLineRunner, ExitCodeGenerator {
 
   private final HarnessCommand command;
+  private final ListModelsCommand listModelsCommand;
+  private final RunningModelsCommand runningModelsCommand;
   private final PicocliExceptionHandler exceptionHandler;
   private int exitCode;
 
@@ -26,16 +28,26 @@ public class PicocliRunner implements CommandLineRunner, ExitCodeGenerator {
    * Creates the runner.
    *
    * @param command entry command bean
+   * @param listModelsCommand subcommand {@code list}
+   * @param runningModelsCommand subcommand {@code ps}
    * @param exceptionHandler reports failures escaping the command
    */
-  public PicocliRunner(HarnessCommand command, PicocliExceptionHandler exceptionHandler) {
+  public PicocliRunner(
+      HarnessCommand command,
+      ListModelsCommand listModelsCommand,
+      RunningModelsCommand runningModelsCommand,
+      PicocliExceptionHandler exceptionHandler) {
     this.command = command;
+    this.listModelsCommand = listModelsCommand;
+    this.runningModelsCommand = runningModelsCommand;
     this.exceptionHandler = exceptionHandler;
   }
 
   @Override
   public void run(String... args) {
     exitCode = new CommandLine(command)
+        .addSubcommand(listModelsCommand)
+        .addSubcommand(runningModelsCommand)
         .setExecutionExceptionHandler(exceptionHandler)
         .execute(args);
   }

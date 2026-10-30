@@ -8,6 +8,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.web.client.RestClient;
 
 import dev.localllm.harness.infrastructure.TestProperties;
+import dev.localllm.harness.infrastructure.config.HarnessProperties;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
@@ -56,7 +57,9 @@ class OllamaContextBudgetAdapterIT {
   }
 
   private static OllamaContextBudgetAdapter adapter(String baseUrl) {
-    return new OllamaContextBudgetAdapter(RestClient.builder(),
-        TestProperties.create(Path.of("build/harness-home"), baseUrl, false));
+    HarnessProperties properties =
+        TestProperties.create(Path.of("build/harness-home"), baseUrl, false);
+    return new OllamaContextBudgetAdapter(
+        new OllamaPsClient(RestClient.builder(), properties), properties);
   }
 }

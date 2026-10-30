@@ -1,12 +1,10 @@
 package dev.localllm.harness.infrastructure.out.ollama;
 
-import java.util.List;
 import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import dev.localllm.harness.application.port.out.ContextBudgetPort;
@@ -25,32 +23,24 @@ public class OllamaContextBudgetAdapter implements ContextBudgetPort {
 
   private static final Logger log = LoggerFactory.getLogger(OllamaContextBudgetAdapter.class);
 
-  private final RestClient restClient;
+  private final OllamaPsClient psClient;
   private final int configuredContextLength;
 
   /**
    * Creates the adapter.
    *
-   * @param restClientBuilder auto-configured HTTP client builder
-   * @param properties harness settings with the Ollama address and the configured window
+   * @param psClient client of {@code /api/ps}
+   * @param properties harness settings with the configured window
    */
-  public OllamaContextBudgetAdapter(
-      RestClient.Builder restClientBuilder, HarnessProperties properties) {
-    this.restClient = restClientBuilder.clone().baseUrl(properties.ollamaBaseUrl()).build();
+  public OllamaContextBudgetAdapter(OllamaPsClient psClient, HarnessProperties properties) {
+    this.psClient = psClient;
     this.configuredContextLength = properties.context().numCtx();
   }
 
   @Override
   public int contextLength(String model) {
     try {
-      OllamaRunningModels running = restClient.get()
-          .uri("/api/ps")
-          .retrieve()
-          .body(OllamaRunningModels.class);
-      List<OllamaRunningModels.RunningModel> models = running == null
-          ? List.of()
-          : Objects.requireNonNullElse(running.models(), List.of());
-      return models.stream()
+      return psClient.runningModels().stream()
           .filter(loaded -> model.equals(loaded.name()))
           .map(OllamaRunningModels.RunningModel::contextLength)
           .filter(Objects::nonNull)
