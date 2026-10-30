@@ -4,9 +4,11 @@ import java.nio.file.Path;
 
 import org.springframework.ai.chat.model.ToolContext;
 
+import dev.localllm.harness.application.model.SessionId;
+
 /**
- * Reads the working directory that {@link SpringAiToolExecutorAdapter} puts into the
- * {@link ToolContext} of every call.
+ * Reads the working directory and the session that {@link SpringAiToolExecutorAdapter} puts
+ * into the {@link ToolContext} of every call.
  */
 final class ToolContexts {
 
@@ -25,6 +27,20 @@ final class ToolContexts {
       return directory.toAbsolutePath().normalize();
     }
     throw new IllegalStateException("The working directory is missing from the tool context");
+  }
+
+  /**
+   * Session of the call.
+   *
+   * @param context tool context
+   * @return session identifier
+   */
+  static SessionId sessionId(ToolContext context) {
+    Object value = context.getContext().get(SpringAiToolExecutorAdapter.SESSION_ID);
+    if (value instanceof SessionId sessionId) {
+      return sessionId;
+    }
+    throw new IllegalStateException("The session is missing from the tool context");
   }
 
   /**

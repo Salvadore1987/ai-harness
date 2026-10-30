@@ -11,16 +11,18 @@ import org.springframework.stereotype.Component;
 
 import dev.localllm.harness.application.dto.result.CompactionResult;
 import dev.localllm.harness.application.dto.result.ContextUsageResult;
+import dev.localllm.harness.application.dto.result.SavedAnswerResult;
 import dev.localllm.harness.application.dto.result.SessionSummaryResult;
 import dev.localllm.harness.application.port.in.CompactSessionUseCase;
 import dev.localllm.harness.application.port.in.GetContextUsageQuery;
 import dev.localllm.harness.application.port.in.ListSessionsQuery;
 import dev.localllm.harness.application.port.in.ResumeSessionUseCase;
+import dev.localllm.harness.application.port.in.SaveAnswerUseCase;
 import dev.localllm.harness.application.port.in.StartSessionUseCase;
 import dev.localllm.harness.infrastructure.in.cli.mapper.ReplCliMapper;
 
 /**
- * Slash commands about the session: {@code /clear /sessions /resume /compact /context}.
+ * Slash commands about the session: {@code /clear /sessions /resume /compact /context /save}.
  */
 @Component
 public class SessionSlashCommands {
@@ -36,6 +38,7 @@ public class SessionSlashCommands {
   private final ListSessionsQuery listSessionsQuery;
   private final CompactSessionUseCase compactSessionUseCase;
   private final GetContextUsageQuery getContextUsageQuery;
+  private final SaveAnswerUseCase saveAnswerUseCase;
   private final ReplCliMapper mapper;
   private final Terminal terminal;
 
@@ -47,6 +50,7 @@ public class SessionSlashCommands {
    * @param listSessionsQuery lists sessions for {@code /sessions}
    * @param compactSessionUseCase compacts the history for {@code /compact}
    * @param getContextUsageQuery measures the context for {@code /context}
+   * @param saveAnswerUseCase saves the latest answer for {@code /save}
    * @param mapper builds commands from the CLI state
    * @param terminal terminal to print to
    */
@@ -56,6 +60,7 @@ public class SessionSlashCommands {
       ListSessionsQuery listSessionsQuery,
       CompactSessionUseCase compactSessionUseCase,
       GetContextUsageQuery getContextUsageQuery,
+      SaveAnswerUseCase saveAnswerUseCase,
       ReplCliMapper mapper,
       Terminal terminal) {
     this.startSessionUseCase = startSessionUseCase;
@@ -63,6 +68,7 @@ public class SessionSlashCommands {
     this.listSessionsQuery = listSessionsQuery;
     this.compactSessionUseCase = compactSessionUseCase;
     this.getContextUsageQuery = getContextUsageQuery;
+    this.saveAnswerUseCase = saveAnswerUseCase;
     this.mapper = mapper;
     this.terminal = terminal;
   }
@@ -141,6 +147,20 @@ public class SessionSlashCommands {
         getContextUsageQuery.execute(mapper.toContextUsageCriteria(session));
     println(String.format(Locale.ROOT, "Контекст: ~%d из %d токенов (%d %%)",
         usage.usedTokens(), usage.budgetTokens(), usage.percent()));
+  }
+
+  /**
+   * {@code /save [file]}: writes the latest answer to a file as it is stored, without asking the
+   * model again.
+   *
+   * @param session CLI state
+   * @param path target file, empty for {@code answer-<date>-<time>.md}
+   */
+  public void save(ReplSession session, String path) {
+    SavedAnswerResult result =
+        saveAnswerUseCase.execute(mapper.toSaveAnswerCommand(session, path));
+    println(String.format(Locale.ROOT, "Ответ сохранён в %s (%d симв.)",
+        result.file(), result.characters()));
   }
 
   private void println(String text) {

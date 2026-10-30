@@ -7,6 +7,7 @@ import dev.localllm.harness.application.dto.command.CancelTurnCommand;
 import dev.localllm.harness.application.dto.command.CompactSessionCommand;
 import dev.localllm.harness.application.dto.command.ResumeSessionCommand;
 import dev.localllm.harness.application.dto.command.RunAgentTurnCommand;
+import dev.localllm.harness.application.dto.command.SaveAnswerCommand;
 import dev.localllm.harness.application.dto.command.SendMessageCommand;
 import dev.localllm.harness.application.dto.command.StartSessionCommand;
 import dev.localllm.harness.application.dto.command.SwitchModelCommand;
@@ -86,6 +87,19 @@ public interface ReplCliMapper {
    * @return compact command
    */
   CompactSessionCommand toCompactSessionCommand(ReplSession session);
+
+  /**
+   * Builds the command that saves the latest answer; no turn is running, so none is skipped.
+   *
+   * @param session CLI state with session and working directory
+   * @param path target file, empty for a generated name
+   * @return save command
+   */
+  @Mapping(target = "sessionId", source = "session.sessionId")
+  @Mapping(target = "workingDirectory", source = "session.workingDirectory")
+  @Mapping(target = "path", source = "path")
+  @Mapping(target = "skipCurrentTurn", constant = "false")
+  SaveAnswerCommand toSaveAnswerCommand(ReplSession session, String path);
 
   /**
    * Builds the command that switches the model.

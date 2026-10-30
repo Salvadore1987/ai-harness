@@ -15,6 +15,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mapstruct.factory.Mappers;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 
+import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.ToolCall;
 import dev.localllm.harness.application.model.ToolResult;
 import dev.localllm.harness.infrastructure.TestProperties;
@@ -95,6 +96,7 @@ class ShellToolsTest {
   }
 
   private ToolResult run(String argumentsJson) {
-    return executor.execute(new ToolCall("c1", "run_command", argumentsJson), cwd);
+    return executor.execute(new ToolCall("c1", "run_command", argumentsJson), SessionId.newId(),
+        cwd);
   }
 }

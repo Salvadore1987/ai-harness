@@ -448,3 +448,6 @@ M4 и M5 независимы друг от друга и могут идти п
 - Ревизия зависимостей раз в квартал (`./gradlew dependencies`).
 - Наблюдаемость: при `--verbose` выводить prefill отдельно от генерации (нужны `prompt_eval_duration`
   и `eval_duration` из ответа Ollama).
+- Сохранение ответов сверх `/save` и `save_answer` ([ADR-004](adr/ADR-004-saving-answers.md)):
+  `/export [файл]` — вся сессия в markdown из JSONL; `/record [файл|off]` и `--output` — запись
+  потока в файл во время генерации вторым адаптером `TurnOutputPort`.

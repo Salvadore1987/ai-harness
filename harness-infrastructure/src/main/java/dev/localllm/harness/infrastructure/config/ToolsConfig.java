@@ -5,6 +5,7 @@ import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import dev.localllm.harness.infrastructure.out.tools.AnswerTools;
 import dev.localllm.harness.infrastructure.out.tools.FileTools;
 import dev.localllm.harness.infrastructure.out.tools.HttpTools;
 import dev.localllm.harness.infrastructure.out.tools.ShellTools;
@@ -21,13 +22,14 @@ public class ToolsConfig {
    * @param fileTools file tools
    * @param shellTools {@code run_command}
    * @param httpTools {@code http_fetch}
+   * @param answerTools {@code save_answer}
    * @return provider of the built-in tool callbacks
    */
   @Bean
   public ToolCallbackProvider builtinToolCallbacks(
-      FileTools fileTools, ShellTools shellTools, HttpTools httpTools) {
+      FileTools fileTools, ShellTools shellTools, HttpTools httpTools, AnswerTools answerTools) {
     return MethodToolCallbackProvider.builder()
-        .toolObjects(fileTools, shellTools, httpTools)
+        .toolObjects(fileTools, shellTools, httpTools, answerTools)
         .build();
   }
 }

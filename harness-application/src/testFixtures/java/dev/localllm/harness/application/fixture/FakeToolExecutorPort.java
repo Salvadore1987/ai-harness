@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
+import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.ToolCall;
 import dev.localllm.harness.application.model.ToolResult;
 import dev.localllm.harness.application.model.ToolSource;
@@ -62,7 +63,7 @@ public final class FakeToolExecutorPort implements ToolExecutorPort {
   }
 
   @Override
-  public ToolResult execute(ToolCall call, Path workingDirectory) {
+  public ToolResult execute(ToolCall call, SessionId sessionId, Path workingDirectory) {
     executed.add(call);
     workingDirectories.add(workingDirectory);
     onExecute.run();

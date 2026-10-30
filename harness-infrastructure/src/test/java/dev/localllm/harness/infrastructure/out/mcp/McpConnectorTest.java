@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 
+import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.ToolCall;
 import dev.localllm.harness.application.model.ToolResult;
 import dev.localllm.harness.application.model.ToolSource;
@@ -90,7 +91,8 @@ class McpConnectorTest {
   void execute_EchoTool_ReturnsTextItemsAsPlainText() {
     // Act
     ToolResult result = executor.execute(
-        new ToolCall("call-1", "mcp__echo__echo", "{\"text\":\"hi\"}"), Path.of("."));
+        new ToolCall("call-1", "mcp__echo__echo", "{\"text\":\"hi\"}"), SessionId.newId(),
+        Path.of("."));
 
     // Assert
     assertThat(result.error()).isFalse();
@@ -101,7 +103,7 @@ class McpConnectorTest {
   void execute_ToolReturningError_IsAnErrorResult() {
     // Act
     ToolResult result = executor.execute(
-        new ToolCall("call-2", "mcp__echo__fail", "{}"), Path.of("."));
+        new ToolCall("call-2", "mcp__echo__fail", "{}"), SessionId.newId(), Path.of("."));
 
     // Assert
     assertThat(result.error()).isTrue();

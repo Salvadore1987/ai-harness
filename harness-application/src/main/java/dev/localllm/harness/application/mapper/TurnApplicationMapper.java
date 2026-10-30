@@ -1,5 +1,7 @@
 package dev.localllm.harness.application.mapper;
 
+import java.nio.file.Path;
+
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -8,6 +10,7 @@ import dev.localllm.harness.application.dto.result.CompactionResult;
 import dev.localllm.harness.application.dto.result.ContextUsageResult;
 import dev.localllm.harness.application.dto.result.ModelSummaryResult;
 import dev.localllm.harness.application.dto.result.RunningModelResult;
+import dev.localllm.harness.application.dto.result.SavedAnswerResult;
 import dev.localllm.harness.application.dto.result.SessionResult;
 import dev.localllm.harness.application.dto.result.SessionSummaryResult;
 import dev.localllm.harness.application.dto.result.ThinkingToggleResult;
@@ -109,4 +112,15 @@ public interface TurnApplicationMapper {
    * @return tool summary
    */
   ToolSummaryResult toToolSummary(ToolSpec tool);
+
+  /**
+   * Describes a written answer file.
+   *
+   * @param file absolute path of the file
+   * @param characters length of the saved text
+   * @return saved answer result
+   */
+  @Mapping(target = "file", source = "file")
+  @Mapping(target = "characters", source = "characters")
+  SavedAnswerResult toSavedAnswerResult(Path file, int characters);
 }

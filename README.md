@@ -5,12 +5,13 @@
 режимом одиночного запроса, сессиями в JSONL с продолжением, автоматической компакцией истории,
 подстановкой файлов через `@путь` и агентным режимом, в котором модель сама читает и правит код,
 выполняет команды и скачивает страницы (`read_file`, `list_dir`, `glob`, `grep`, `write_file`,
-`edit_file`, `run_command`, `http_fetch`) через нативный tool calling или текстовый протокол для
+`edit_file`, `run_command`, `http_fetch`, `save_answer`) через нативный tool calling или текстовый протокол для
 моделей без него, с инструментами внешних MCP-серверов. Собирается в GraalVM native image и
 стартует за 0.05–0.15 с. Документация: [сборка](docs/build.md), [запуск скомпилированной версии](docs/run.md), [использование](docs/usage.md). План этапов — [docs/implementation-plan.md](docs/implementation-plan.md). Спецификация — [docs/java-ai-harness.md](docs/java-ai-harness.md),
 архитектурные решения — [ADR-001](docs/adr/ADR-001-architecture.md) (архитектура),
 [ADR-002](docs/adr/ADR-002-native-image.md) (native image),
-[ADR-003](docs/adr/ADR-003-model-listing-commands.md) (команды `ps` и `list`).
+[ADR-003](docs/adr/ADR-003-model-listing-commands.md) (команды `ps` и `list`),
+[ADR-004](docs/adr/ADR-004-saving-answers.md) (сохранение ответа в файл).
 
 ## Требования
 
@@ -25,6 +26,7 @@
 ./gradlew :harness-bootstrap:nativeCompile  # бинарник, около 70 с и до 7 ГБ памяти
 bin/harness                                 # REPL
 bin/harness -p "Объясни, что такое CAP" # один запрос, ответ в stdout, код выхода 0/1
+bin/harness -p "Объясни, что такое CAP" > cap.md # ответ в файл, размышления — в консоль
 bin/harness --mode agent -p "Что делает Calc.add?" # агент читает файлы сам
 bin/harness --mode agent -p "Исправь Calc.add и запусти тесты" # правит файлы и выполняет команды
 bin/harness list                            # установленные модели
@@ -44,7 +46,7 @@ harness-bootstrap/build/libs/harness.jar`. Первый запуск свеже�
 контекста и временем до выгрузки; печатают таблицу и выходят.
 
 В REPL: `/help`, `/exit`, `/clear`, `/sessions`, `/resume [id]`, `/compact`, `/context`,
-`/model [имя]`, `/list [префикс]`, `/ps [префикс]`, `/think [on|off]`, `/mode [chat|agent]`,
+`/save [файл]`, `/model [имя]`, `/list [префикс]`, `/ps [префикс]`, `/think [on|off]`, `/mode [chat|agent]`,
 `/tools [префикс]`. `@путь` прикладывает файл из рабочей директории (Tab —
 автодополнение). Многострочный ввод — `\` в конце строки или Alt+Enter. Ctrl+C во время
 генерации останавливает её, дважды на пустой строке — выход.
@@ -59,6 +61,11 @@ harness-bootstrap/build/libs/harness.jar`. Первый запуск свеже�
 `run_command` запускает `zsh -c` с пустым stdin и по таймауту (120 с) убивает всё дерево
 процессов. Цикл останавливается после 25 запросов к модели без финального ответа. При `-p` с
 перенаправленным выводом вызовы инструментов идут в stderr, в stdout — только ответ.
+
+Последний ответ сохраняется в файл командой `/save [файл]` (без имени — `answer-<время>.md`),
+а в режиме `agent` — и просьбой «сохрани этот текст в notes.md»: модель вызывает
+`save_answer`. В обоих случаях текст копируется из истории дословно, модель его не генерирует
+заново.
 
 Модели без нативного tool calling работают через текстовый протокол: инструменты описываются в
 системном промпте, модель пишет вызов блоком ```` ```tool ```` в конце ответа, harness прячет

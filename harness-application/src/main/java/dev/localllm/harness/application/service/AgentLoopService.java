@@ -50,8 +50,10 @@ public class AgentLoopService implements RunAgentTurnUseCase {
       You are a coding assistant working in a terminal on the user's machine.
       Use the tools to read and change files, run commands and fetch web pages instead of \
       guessing. Prefer edit_file over write_file for changes to existing files. Relative paths \
-      are resolved against the working directory. Answer without a tool call as soon as you \
-      have enough information. Answer in the language of the user.
+      are resolved against the working directory. When the user asks to save a text you have \
+      already written in this conversation, call save_answer: it copies the stored text \
+      exactly. Never retype such a text with write_file. Answer without \
+      a tool call as soon as you have enough information. Answer in the language of the user.
       Working directory:\s""";
   private static final String SUMMARY_HEADER = "\n\nSummary of the earlier conversation:\n";
   private static final String CANCELLED_OUTPUT = "Cancelled by the user before execution";
@@ -197,7 +199,7 @@ public class AgentLoopService implements RunAgentTurnUseCase {
   private ToolResult executeTool(RunAgentTurnCommand command, ToolCall call,
       Set<String> toolNames, @Nullable String toolCallError) {
     if (toolNames.contains(call.name())) {
-      return toolExecutorPort.execute(call, command.workingDirectory());
+      return toolExecutorPort.execute(call, command.sessionId(), command.workingDirectory());
     }
     if (ToolCall.PARSE_ERROR.equals(call.name()) && toolCallError != null) {
       return ToolResult.rejected(call, TOOL_ERROR_PREFIX + toolCallError + TOOL_ERROR_SUFFIX);
