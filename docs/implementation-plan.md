@@ -28,6 +28,7 @@ Functional Requirements спецификации. Выполненные зад�
 | M4 | Запись файлов, shell, HTTP, запасной текстовый протокол | M3 | ✅ |
 | M5 | MCP-клиент (stdio + Streamable HTTP) | M3 | ✅ |
 | M6 | Native image (по ADR с замером) | M1–M5 | ✅ |
+| M7 | Провайдеры LLM с выбором в runtime: Ollama + Anthropic ([план](provider-plan.md)) | M1–M6 | — |
 
 M4 и M5 независимы друг от друга и могут идти параллельно после M3.
 
