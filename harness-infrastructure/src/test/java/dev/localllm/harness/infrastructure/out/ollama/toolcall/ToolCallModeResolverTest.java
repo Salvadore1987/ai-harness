@@ -1,14 +1,12 @@
 package dev.localllm.harness.infrastructure.out.ollama.toolcall;
 
-import java.nio.file.Path;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 
-import dev.localllm.harness.infrastructure.TestProperties;
-import dev.localllm.harness.infrastructure.config.HarnessProperties;
-import dev.localllm.harness.infrastructure.config.HarnessProperties.ToolCallModeType;
+import dev.localllm.harness.infrastructure.out.ollama.OllamaTestProperties;
+import dev.localllm.harness.infrastructure.out.ollama.config.OllamaProperties.ToolCallModeType;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.ChatMessageSpringAiMapper;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.ToolCallSpringAiMapper;
 
@@ -48,11 +46,8 @@ class ToolCallModeResolverTest {
 
   private ToolCallModeResolver resolver(Map<String, ToolCallModeType> modes,
       ToolCallModeType defaultMode) {
-    HarnessProperties defaults =
-        TestProperties.create(Path.of("build/harness-home"), "http://localhost:11434", false);
-    HarnessProperties properties = new HarnessProperties(defaults.model(),
-        defaults.ollamaBaseUrl(), defaults.home(), defaults.thinking(), defaults.context(),
-        defaults.agent(), defaults.tools(), modes, defaultMode, defaults.mcp());
-    return new ToolCallModeResolver(properties, nativeMode, textJsonMode);
+    return new ToolCallModeResolver(
+        OllamaTestProperties.create("http://localhost:11434", modes, defaultMode), nativeMode,
+        textJsonMode);
   }
 }

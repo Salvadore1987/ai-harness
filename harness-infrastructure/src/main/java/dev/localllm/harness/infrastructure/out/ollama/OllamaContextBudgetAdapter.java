@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 
 import dev.localllm.harness.application.port.out.ContextBudgetPort;
-import dev.localllm.harness.infrastructure.config.HarnessProperties;
+import dev.localllm.harness.infrastructure.out.ollama.config.OllamaProperties;
 import dev.localllm.harness.infrastructure.out.ollama.dto.OllamaRunningModels;
 
 /**
@@ -30,9 +30,9 @@ public class OllamaContextBudgetAdapter implements ContextBudgetPort {
    * Creates the adapter.
    *
    * @param psClient client of {@code /api/ps}
-   * @param properties harness settings with the configured window
+   * @param properties Ollama settings with the configured window
    */
-  public OllamaContextBudgetAdapter(OllamaPsClient psClient, HarnessProperties properties) {
+  public OllamaContextBudgetAdapter(OllamaPsClient psClient, OllamaProperties properties) {
     this.psClient = psClient;
     this.configuredContextLength = properties.context().numCtx();
   }

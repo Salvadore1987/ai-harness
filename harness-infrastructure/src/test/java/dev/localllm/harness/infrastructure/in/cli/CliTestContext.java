@@ -86,7 +86,7 @@ final class CliTestContext {
           new ToolErrorHandler(), new AnswerErrorHandler(), new FallbackErrorHandler()),
       terminal.terminal());
   final HarnessProperties properties =
-      TestProperties.create(Path.of("build/harness-home"), "http://localhost:11434", false);
+      TestProperties.create(Path.of("build/harness-home"), false);
 
   private final TurnApplicationMapper applicationMapper =
       Mappers.getMapper(TurnApplicationMapper.class);

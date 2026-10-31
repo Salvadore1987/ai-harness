@@ -36,10 +36,10 @@ import dev.localllm.harness.application.service.TurnCancellation;
 import dev.localllm.harness.infrastructure.TestProperties;
 import dev.localllm.harness.infrastructure.TestTerminals;
 import dev.localllm.harness.infrastructure.config.HarnessProperties;
-import dev.localllm.harness.infrastructure.config.HarnessProperties.ToolCallModeType;
 import dev.localllm.harness.infrastructure.out.mcp.McpConnector;
 import dev.localllm.harness.infrastructure.out.mcp.McpStartupReporter;
 import dev.localllm.harness.infrastructure.out.mcp.McpTestSupport;
+import dev.localllm.harness.infrastructure.out.ollama.config.OllamaProperties.ToolCallModeType;
 import dev.localllm.harness.infrastructure.out.tools.FileTools;
 import dev.localllm.harness.infrastructure.out.tools.HttpTools;
 import dev.localllm.harness.infrastructure.out.tools.ShellTools;
@@ -157,8 +157,9 @@ class AgentLiveIT {
   private AgentLoopService service(OllamaChatAdapter chatAdapter,
       RecordingTurnOutputPort output, McpConnector mcpConnector) {
     InMemoryConversationPort conversation = new InMemoryConversationPort();
-    HarnessProperties properties = TestProperties.create(cwd.resolve("home"), BASE_URL, false);
-    ContextMeter meter = new ContextMeter(new FixedContextBudgetPort(TestProperties.NUM_CTX),
+    HarnessProperties properties = TestProperties.create(cwd.resolve("home"), false);
+    ContextMeter meter = new ContextMeter(
+        new FixedContextBudgetPort(OllamaTestProperties.NUM_CTX),
         new ContextPolicy(0.8, 0.25, 3.5));
     return new AgentLoopService(conversation,
         new SessionRegistrar(new FakeSessionCatalogPort(), Clock.systemUTC()),

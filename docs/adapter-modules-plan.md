@@ -40,13 +40,17 @@ harness-bootstrap ──► harness-infrastructure ──────► harness
 
 ## Шаги
 
-1. **Выделить настройки Ollama внутри `harness-infrastructure`.** `OllamaProperties` (с
+1. ✅ **Выделить настройки Ollama внутри `harness-infrastructure`.** `OllamaProperties` (с
    `ToolCallModeType`) и `OllamaNativeHints` в пакете `out/ollama/config`; Ollama-адаптеры,
    `ToolCallModeResolver`, `OllamaPsClient`, `OllamaErrorTranslator` переходят на них;
    `ollamaBaseUrl`, `toolCallModes`, `defaultToolCallMode`, `context.numCtx` удаляются из
    `HarnessProperties`; `NativeHintsConfig` больше не ссылается на `OllamaRunningModels`.
    Тестовые фикстуры: `TestProperties` разделяется на общую часть и `OllamaTestProperties`.
    Сборка зелёная, модулей ещё нет — шаг проверяет, что зависимости разрезаются чисто.
+   *Итог:* `OllamaProperties` привязан к префиксу `harness` рядом с `HarnessProperties` и
+   регистрируется в `OllamaConfig` вместе с `OllamaNativeHints`; ключи и `HARNESS_*` не
+   изменились. Риск двух `@ConfigurationProperties` на одном префиксе не подтвердился:
+   `clean check` (286 тестов), native smoke (8) и live против `qwen3.5:27b` (8) зелёные.
 2. **Создать `harness-adapter-ollama` и перенести код.** Модуль в `settings.gradle.kts`,
    `build.gradle.kts` (`java-library`, `java-test-fixtures`, `api(":harness-application")`,
    Spring AI Ollama starter, MapStruct + processor, configuration processor, WireMock, JaCoCo

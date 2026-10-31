@@ -144,7 +144,7 @@ class JsonlSessionStorageTest {
     ChatMemoryConversationAdapter adapter = new ChatMemoryConversationAdapter(
         new TokenWindowChatMemory(persisting), persisting,
         Mappers.getMapper(ChatMessageMemoryMapper.class),
-        TestProperties.create(home, "http://localhost:11434", true));
+        TestProperties.create(home, true));
 
     // Act
     adapter.append(sessionId, new ChatMessage(Role.USER, "hi"));
@@ -237,12 +237,12 @@ class JsonlSessionStorageTest {
   private ChatMemoryConversationAdapter adapter() {
     return new ChatMemoryConversationAdapter(memory, repository,
         Mappers.getMapper(ChatMessageMemoryMapper.class),
-        TestProperties.create(home, "http://localhost:11434", false));
+        TestProperties.create(home, false));
   }
 
   private JsonlChatMemoryRepository repository(boolean persistThinking) {
     HarnessProperties properties =
-        TestProperties.create(home, "http://localhost:11434", persistThinking);
+        TestProperties.create(home, persistThinking);
     return new JsonlChatMemoryRepository(properties, JsonMapper.builder().build(),
         Mappers.getMapper(JsonlLineMapper.class), Clock.fixed(NOW, ZoneOffset.UTC));
   }

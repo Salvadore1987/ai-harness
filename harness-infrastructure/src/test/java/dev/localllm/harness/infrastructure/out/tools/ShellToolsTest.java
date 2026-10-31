@@ -40,7 +40,7 @@ class ShellToolsTest {
   @BeforeEach
   void setUp() {
     HarnessProperties properties =
-        TestProperties.create(cwd.resolve("home"), "http://localhost:11434", false);
+        TestProperties.create(cwd.resolve("home"), false);
     executor = new SpringAiToolExecutorAdapter(
         List.of(MethodToolCallbackProvider.builder()
             .toolObjects(new ShellTools(properties)).build()),

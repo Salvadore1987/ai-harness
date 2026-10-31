@@ -62,11 +62,10 @@ class McpHttpHeadersTest {
 
   private static McpSyncClient client(String name, Map<String, Map<String, String>> headers) {
     HarnessProperties defaults =
-        TestProperties.create(Path.of("build/harness-home"), "http://localhost:11434", false);
-    HarnessProperties properties = new HarnessProperties(defaults.model(),
-        defaults.ollamaBaseUrl(), defaults.home(), defaults.thinking(), defaults.context(),
-        defaults.agent(), defaults.tools(), defaults.toolCallModes(),
-        defaults.defaultToolCallMode(), new HarnessProperties.Mcp(headers));
+        TestProperties.create(Path.of("build/harness-home"), false);
+    HarnessProperties properties = new HarnessProperties(defaults.model(), defaults.home(),
+        defaults.thinking(), defaults.context(), defaults.agent(), defaults.tools(),
+        new HarnessProperties.Mcp(headers));
     HttpClientStreamableHttpTransport.Builder builder =
         HttpClientStreamableHttpTransport.builder(server.baseUrl())
             .endpoint("/mcp")

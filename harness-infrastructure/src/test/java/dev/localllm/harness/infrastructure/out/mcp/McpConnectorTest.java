@@ -46,7 +46,7 @@ class McpConnectorTest {
     executor = new SpringAiToolExecutorAdapter(
         List.of(MethodToolCallbackProvider.builder().toolObjects(new FileTools()).build()),
         connector, Mappers.getMapper(ToolSpecSpringAiMapper.class),
-        TestProperties.create(Path.of("build/harness-home"), "http://localhost:11434", false));
+        TestProperties.create(Path.of("build/harness-home"), false));
   }
 
   @AfterAll

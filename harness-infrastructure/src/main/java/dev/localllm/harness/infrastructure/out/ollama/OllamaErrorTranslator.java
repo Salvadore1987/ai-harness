@@ -15,7 +15,7 @@ import dev.localllm.harness.application.exception.HarnessException;
 import dev.localllm.harness.application.exception.LlmResponseException;
 import dev.localllm.harness.application.exception.LlmUnavailableException;
 import dev.localllm.harness.application.exception.ModelNotFoundException;
-import dev.localllm.harness.infrastructure.config.HarnessProperties;
+import dev.localllm.harness.infrastructure.out.ollama.config.OllamaProperties;
 
 /**
  * Translates Spring AI and HTTP client failures into harness exceptions.
@@ -40,9 +40,9 @@ public class OllamaErrorTranslator {
   /**
    * Creates the translator.
    *
-   * @param properties harness settings with the Ollama address
+   * @param properties Ollama settings with the server address
    */
-  public OllamaErrorTranslator(HarnessProperties properties) {
+  public OllamaErrorTranslator(OllamaProperties properties) {
     this.baseUrl = properties.ollamaBaseUrl();
   }
 

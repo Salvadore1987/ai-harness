@@ -11,7 +11,6 @@ import org.springframework.context.annotation.ImportRuntimeHints;
 import dev.localllm.harness.infrastructure.out.mcp.dto.McpServersFile;
 import dev.localllm.harness.infrastructure.out.memory.dto.JsonlLine;
 import dev.localllm.harness.infrastructure.out.memory.dto.JsonlToolCall;
-import dev.localllm.harness.infrastructure.out.ollama.dto.OllamaRunningModels;
 import dev.localllm.harness.infrastructure.out.tools.AnswerTools;
 import dev.localllm.harness.infrastructure.out.tools.FileTools;
 import dev.localllm.harness.infrastructure.out.tools.HttpTools;
@@ -48,7 +47,7 @@ public class NativeHintsConfig {
 
     /** Read and written by Jackson. */
     private static final Class<?>[] JSON_TYPES = {
-        JsonlLine.class, JsonlToolCall.class, OllamaRunningModels.class, McpServersFile.class,
+        JsonlLine.class, JsonlToolCall.class, McpServersFile.class,
     };
 
     @Override

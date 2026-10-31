@@ -29,7 +29,7 @@ import dev.localllm.harness.application.model.ToolResult;
 import dev.localllm.harness.application.model.ToolSource;
 import dev.localllm.harness.application.model.ToolSpec;
 import dev.localllm.harness.application.model.TurnStatus;
-import dev.localllm.harness.infrastructure.config.HarnessProperties.ToolCallModeType;
+import dev.localllm.harness.infrastructure.out.ollama.config.OllamaProperties.ToolCallModeType;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
@@ -93,7 +93,7 @@ class OllamaChatAdapterIT {
         .withRequestBody(matchingJsonPath("$.stream", equalTo("true")))
         .withRequestBody(matchingJsonPath("$.keep_alive", equalTo(OllamaTestSupport.KEEP_ALIVE)))
         .withRequestBody(matchingJsonPath(
-            "$.options.num_ctx", equalTo(String.valueOf(OllamaTestSupport.NUM_CTX))))
+            "$.options.num_ctx", equalTo(String.valueOf(OllamaTestProperties.NUM_CTX))))
         .withRequestBody(matchingJsonPath("$.messages[0].content", equalTo("hi"))));
   }
 

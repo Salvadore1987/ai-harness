@@ -1,6 +1,5 @@
 package dev.localllm.harness.infrastructure.out.ollama;
 
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 
@@ -13,7 +12,6 @@ import org.springframework.web.client.RestClient;
 import dev.localllm.harness.application.exception.LlmResponseException;
 import dev.localllm.harness.application.exception.LlmUnavailableException;
 import dev.localllm.harness.application.model.RunningModelInfo;
-import dev.localllm.harness.infrastructure.TestProperties;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.RunningModelOllamaMapper;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
@@ -92,8 +90,7 @@ class OllamaRunningModelsAdapterIT {
 
   private static OllamaRunningModelsAdapter adapter(String baseUrl) {
     return new OllamaRunningModelsAdapter(
-        new OllamaPsClient(RestClient.builder(),
-            TestProperties.create(Path.of("build/harness-home"), baseUrl, false)),
+        new OllamaPsClient(RestClient.builder(), OllamaTestProperties.create(baseUrl)),
         Mappers.getMapper(RunningModelOllamaMapper.class),
         OllamaTestSupport.translator(baseUrl));
   }

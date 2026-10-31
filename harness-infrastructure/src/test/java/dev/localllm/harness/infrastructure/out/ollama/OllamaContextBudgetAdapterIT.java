@@ -1,14 +1,11 @@
 package dev.localllm.harness.infrastructure.out.ollama;
 
-import java.nio.file.Path;
-
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.web.client.RestClient;
 
-import dev.localllm.harness.infrastructure.TestProperties;
-import dev.localllm.harness.infrastructure.config.HarnessProperties;
+import dev.localllm.harness.infrastructure.out.ollama.config.OllamaProperties;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
@@ -44,7 +41,7 @@ class OllamaContextBudgetAdapterIT {
     int contextLength = adapter(ollama.baseUrl()).contextLength("qwen3.5:27b");
 
     // Assert
-    assertThat(contextLength).isEqualTo(TestProperties.NUM_CTX);
+    assertThat(contextLength).isEqualTo(OllamaTestProperties.NUM_CTX);
   }
 
   @Test
@@ -53,12 +50,11 @@ class OllamaContextBudgetAdapterIT {
     int contextLength = adapter("http://localhost:1").contextLength("qwen3.5:27b");
 
     // Assert
-    assertThat(contextLength).isEqualTo(TestProperties.NUM_CTX);
+    assertThat(contextLength).isEqualTo(OllamaTestProperties.NUM_CTX);
   }
 
   private static OllamaContextBudgetAdapter adapter(String baseUrl) {
-    HarnessProperties properties =
-        TestProperties.create(Path.of("build/harness-home"), baseUrl, false);
+    OllamaProperties properties = OllamaTestProperties.create(baseUrl);
     return new OllamaContextBudgetAdapter(
         new OllamaPsClient(RestClient.builder(), properties), properties);
   }

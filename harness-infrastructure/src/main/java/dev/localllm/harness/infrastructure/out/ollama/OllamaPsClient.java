@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-import dev.localllm.harness.infrastructure.config.HarnessProperties;
+import dev.localllm.harness.infrastructure.out.ollama.config.OllamaProperties;
 import dev.localllm.harness.infrastructure.out.ollama.dto.OllamaRunningModels;
 
 /**
@@ -22,9 +22,9 @@ public class OllamaPsClient {
    * Creates the client.
    *
    * @param restClientBuilder auto-configured HTTP client builder
-   * @param properties harness settings with the Ollama address
+   * @param properties Ollama settings with the server address
    */
-  public OllamaPsClient(RestClient.Builder restClientBuilder, HarnessProperties properties) {
+  public OllamaPsClient(RestClient.Builder restClientBuilder, OllamaProperties properties) {
     this.restClient = restClientBuilder.clone().baseUrl(properties.ollamaBaseUrl()).build();
   }
 

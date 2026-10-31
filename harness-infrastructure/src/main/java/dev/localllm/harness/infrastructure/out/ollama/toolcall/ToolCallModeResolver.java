@@ -5,8 +5,8 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
-import dev.localllm.harness.infrastructure.config.HarnessProperties;
-import dev.localllm.harness.infrastructure.config.HarnessProperties.ToolCallModeType;
+import dev.localllm.harness.infrastructure.out.ollama.config.OllamaProperties;
+import dev.localllm.harness.infrastructure.out.ollama.config.OllamaProperties.ToolCallModeType;
 
 /**
  * Selects the tool call mode of a model by the longest matching name prefix in
@@ -24,11 +24,11 @@ public class ToolCallModeResolver {
   /**
    * Creates the resolver.
    *
-   * @param properties harness settings with the modes by prefix
+   * @param properties Ollama settings with the modes by prefix
    * @param nativeMode native tool calling
    * @param textJsonMode tool calls written as text
    */
-  public ToolCallModeResolver(HarnessProperties properties, NativeToolCallMode nativeMode,
+  public ToolCallModeResolver(OllamaProperties properties, NativeToolCallMode nativeMode,
       TextJsonToolCallMode textJsonMode) {
     this.modes = properties.toolCallModes();
     this.defaultMode = properties.defaultToolCallMode();

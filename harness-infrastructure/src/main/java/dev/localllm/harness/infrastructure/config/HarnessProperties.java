@@ -15,31 +15,26 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * Harness settings bound from {@code harness.*}.
+ * Provider-neutral harness settings bound from {@code harness.*}; the Ollama settings of the same
+ * prefix are bound by {@code OllamaProperties}.
  *
  * @param model default model tag used on startup
- * @param ollamaBaseUrl address of the Ollama server, also used in error messages
  * @param home directory for sessions, history, logs and user configuration
  * @param thinking thinking mode defaults
  * @param context context window and compaction rules
  * @param agent limits of the agent loop
  * @param tools settings of the built-in tools
- * @param toolCallModes tool call mode by model name prefix; the longest matching prefix wins
- * @param defaultToolCallMode tool call mode of models no prefix matches
  * @param mcp settings of the MCP servers
  */
 @ConfigurationProperties("harness")
 @Validated
 public record HarnessProperties(
     @NotBlank String model,
-    @NotBlank String ollamaBaseUrl,
     @NotNull Path home,
     @NotNull @Valid Thinking thinking,
     @NotNull @Valid Context context,
     @NotNull @Valid Agent agent,
     @NotNull @Valid Tools tools,
-    @NotNull Map<String, ToolCallModeType> toolCallModes,
-    @NotNull ToolCallModeType defaultToolCallMode,
     @DefaultValue @NotNull @Valid Mcp mcp) {
 
   /**
@@ -73,14 +68,12 @@ public record HarnessProperties(
   /**
    * Context window and compaction rules.
    *
-   * @param numCtx context window requested from Ollama; used when the loaded size is unknown
    * @param compactThreshold share of the window that triggers automatic compaction
    * @param keepTailShare share of the window the most recent messages may take and still be
    *     kept verbatim by a compaction
    * @param charsPerToken average characters per token used for estimates
    */
   public record Context(
-      @Min(1024) int numCtx,
       @DecimalMin("0.1") @DecimalMax("0.95") double compactThreshold,
       @DecimalMin("0.0") @DecimalMax("0.5") double keepTailShare,
       @DecimalMin("1.0") double charsPerToken) {
@@ -117,16 +110,6 @@ public record HarnessProperties(
    *     usually come from environment variables through placeholders
    */
   public record Mcp(@DefaultValue @NotNull Map<String, Map<String, String>> headers) {
-  }
-
-  /**
-   * How tools are offered to a model and how its calls are read.
-   */
-  public enum ToolCallModeType {
-    /** Native tool calling: {@code tools} in the request, {@code tool_calls} in the answer. */
-    NATIVE,
-    /** Tools described in the system prompt, calls written as a {@code ```tool} block. */
-    TEXT_JSON
   }
 
   /**

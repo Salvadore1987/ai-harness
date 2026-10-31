@@ -1,6 +1,5 @@
 package dev.localllm.harness.infrastructure.out.ollama;
 
-import java.nio.file.Path;
 import java.util.Map;
 
 import org.mapstruct.factory.Mappers;
@@ -9,9 +8,7 @@ import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.api.OllamaApi;
 import org.springframework.ai.ollama.api.OllamaChatOptions;
 
-import dev.localllm.harness.infrastructure.TestProperties;
-import dev.localllm.harness.infrastructure.config.HarnessProperties;
-import dev.localllm.harness.infrastructure.config.HarnessProperties.ToolCallModeType;
+import dev.localllm.harness.infrastructure.out.ollama.config.OllamaProperties.ToolCallModeType;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.ChatMessageSpringAiMapper;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.ChatResponseSpringAiMapper;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.ModelInfoOllamaMapper;
@@ -27,7 +24,6 @@ import dev.localllm.harness.infrastructure.out.ollama.toolcall.ToolCallModeResol
 final class OllamaTestSupport {
 
   static final String MODEL = "qwen3.5:27b";
-  static final int NUM_CTX = 65536;
   static final String KEEP_ALIVE = "30m";
 
   private OllamaTestSupport() {
@@ -43,7 +39,7 @@ final class OllamaTestSupport {
         .ollamaApi(api)
         .options(OllamaChatOptions.builder()
             .model(MODEL)
-            .numCtx(NUM_CTX)
+            .numCtx(OllamaTestProperties.NUM_CTX)
             .keepAlive(KEEP_ALIVE)
             .build())
         .build();
@@ -64,18 +60,13 @@ final class OllamaTestSupport {
 
   static ToolCallModeResolver toolCallModes(Map<String, ToolCallModeType> modes) {
     ChatMessageSpringAiMapper messageMapper = Mappers.getMapper(ChatMessageSpringAiMapper.class);
-    HarnessProperties defaults =
-        TestProperties.create(Path.of("build/harness-home"), "http://localhost:11434", false);
-    HarnessProperties properties = new HarnessProperties(defaults.model(),
-        defaults.ollamaBaseUrl(), defaults.home(), defaults.thinking(), defaults.context(),
-        defaults.agent(), defaults.tools(), modes, ToolCallModeType.NATIVE, defaults.mcp());
-    return new ToolCallModeResolver(properties,
+    return new ToolCallModeResolver(
+        OllamaTestProperties.create("http://localhost:11434", modes, ToolCallModeType.NATIVE),
         new NativeToolCallMode(messageMapper, Mappers.getMapper(ToolCallSpringAiMapper.class)),
         new TextJsonToolCallMode(messageMapper, new ToolBlockParser()));
   }
 
   static OllamaErrorTranslator translator(String baseUrl) {
-    return new OllamaErrorTranslator(
-        TestProperties.create(Path.of("build/harness-home"), baseUrl, false));
+    return new OllamaErrorTranslator(OllamaTestProperties.create(baseUrl));
   }
 }

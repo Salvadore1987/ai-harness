@@ -51,7 +51,7 @@ class AnswerToolsTest {
         List.of(MethodToolCallbackProvider.builder().toolObjects(tools).build()),
         McpTestSupport.noServers(),
         Mappers.getMapper(ToolSpecSpringAiMapper.class),
-        TestProperties.create(cwd.resolve("home"), "http://localhost:11434", false));
+        TestProperties.create(cwd.resolve("home"), false));
   }
 
   @Test

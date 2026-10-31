@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import dev.localllm.harness.application.model.ModelCapability;
 import dev.localllm.harness.application.model.ModelInfo;
 import dev.localllm.harness.application.port.out.ModelCatalogPort;
-import dev.localllm.harness.infrastructure.config.HarnessProperties.ToolCallModeType;
+import dev.localllm.harness.infrastructure.out.ollama.config.OllamaProperties.ToolCallModeType;
 import dev.localllm.harness.infrastructure.out.ollama.mapper.ModelInfoOllamaMapper;
 import dev.localllm.harness.infrastructure.out.ollama.toolcall.ToolCallModeResolver;
 
