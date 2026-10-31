@@ -5,6 +5,7 @@ spring-ai = "2.0.2"
 picocli = "4.7.7"
 jline = "3.30.17"
 mapstruct = "1.6.3"
+anthropic-java = "3.2.0"
 java-uuid-generator = "5.2.0"
 jspecify = "1.0.1"
 errorprone-core = "2.51.0"
@@ -36,6 +37,7 @@ picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
 picocli-codegen = { module = "info.picocli:picocli-codegen", version.ref = "picocli" }
 jline = { module = "org.jline:jline", version.ref = "jline" }
 mapstruct = { module = "org.mapstruct:mapstruct", version.ref = "mapstruct" }
+anthropic-java = { module = "com.anthropic:anthropic-java", version.ref = "anthropic-java" }
 mapstruct-processor = { module = "org.mapstruct:mapstruct-processor", version.ref = "mapstruct" }
 java-uuid-generator = { module = "com.fasterxml.uuid:java-uuid-generator", version.ref = "java-uuid-generator" }
 jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }

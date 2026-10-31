@@ -10,6 +10,7 @@ dependencies {
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.ai.starter.model.ollama)
     implementation(libs.spring.ai.starter.mcp.client)
+    implementation(libs.anthropic.java)
     implementation(libs.picocli)
     implementation(libs.jline)
     implementation(libs.mapstruct)
