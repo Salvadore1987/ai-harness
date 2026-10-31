@@ -18,12 +18,12 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.util.FileSystemUtils;
 import picocli.CommandLine;
 
+import dev.localllm.harness.adapter.ollama.config.OllamaProperties.ToolCallModeType;
+import dev.localllm.harness.adapter.ollama.toolcall.ToolCallModeResolver;
 import dev.localllm.harness.application.model.ToolSpec;
 import dev.localllm.harness.application.port.out.ToolExecutorPort;
 import dev.localllm.harness.infrastructure.in.cli.HarnessCommand;
 import dev.localllm.harness.infrastructure.in.cli.handlers.PicocliExceptionHandler;
-import dev.localllm.harness.infrastructure.out.ollama.config.OllamaProperties.ToolCallModeType;
-import dev.localllm.harness.infrastructure.out.ollama.toolcall.ToolCallModeResolver;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;

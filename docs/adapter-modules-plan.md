@@ -51,7 +51,7 @@ harness-bootstrap ──► harness-infrastructure ──────► harness
    регистрируется в `OllamaConfig` вместе с `OllamaNativeHints`; ключи и `HARNESS_*` не
    изменились. Риск двух `@ConfigurationProperties` на одном префиксе не подтвердился:
    `clean check` (286 тестов), native smoke (8) и live против `qwen3.5:27b` (8) зелёные.
-2. **Создать `harness-adapter-ollama` и перенести код.** Модуль в `settings.gradle.kts`,
+2. ✅ **Создать `harness-adapter-ollama` и перенести код.** Модуль в `settings.gradle.kts`,
    `build.gradle.kts` (`java-library`, `java-test-fixtures`, `api(":harness-application")`,
    Spring AI Ollama starter, MapStruct + processor, configuration processor, WireMock, JaCoCo
    ≥ 50 %). `git mv` пакета `out/ollama` с переименованием в `adapter.ollama`, `package-info`
@@ -61,6 +61,15 @@ harness-bootstrap ──► harness-infrastructure ──────► harness
    Тесты `out/ollama` переезжают в модуль; `AgentLiveIT` (Ollama + инструменты + MCP) — в
    `harness-bootstrap`; импорты в `HarnessApplicationIT` обновляются. `harness-bootstrap`
    подключает модуль.
+   *Итог и отличия от плана:* `AgentLiveIT` остался в тестах `harness-infrastructure` (пакет
+   `out/tools`): ему нужны тестовые классы инфраструктуры (`TestProperties`, `TestTerminals`,
+   `McpTestSupport`), которые bootstrap не видит. Модуль Ollama подключён к нему только как
+   `testImplementation`, а `OllamaTestSupport` и `OllamaTestProperties` вынесены в test
+   fixtures модуля (`adapter.ollama.fixture`). `HttpTools` получал `spring-web` транзитивно
+   через Ollama starter — инфраструктуре добавлен явный `spring-boot-starter-restclient`.
+   Модуль сразу включён в общий порог JaCoCo. Тестов по-прежнему 286 (application 66,
+   infrastructure 151, adapter-ollama 56, bootstrap 13); native smoke (8) и live (8) зелёные;
+   в runtime classpath инфраструктуры больше нет Spring AI Ollama и Netty DNS.
 3. **Создать каркас `harness-adapter-anthropic`.** Модуль с `package-info` и build-скриптом;
    зависимость `anthropic-java` переносится сюда из `harness-infrastructure`. Проверить через
    `dependencies`, что SDK (Jackson 2, Kotlin, OkHttp) не попадает в classpath
@@ -68,7 +77,8 @@ harness-bootstrap ──► harness-infrastructure ──────► harness
 4. **Закрепить границы и проверить.** ArchUnit (`HexagonalArchitectureTest`): `application` не
    зависит от `..adapter..`; `infrastructure` не зависит от `..adapter..`; адаптеры не
    зависят от `..infrastructure..`, `..bootstrap..` и друг от друга (slices). Общий порог
-   JaCoCo в `harness-bootstrap` учитывает новые модули. Прогон: `./gradlew clean check`,
+   JaCoCo в `harness-bootstrap` учитывает новые модули (Ollama — уже в шаге 2). Прогон:
+   `./gradlew clean check`,
    `-PincludeTags=live` (локальная Ollama), `-PincludeTags=native` (сборка образа и smoke),
    ручной сценарий REPL: чат, агентный ход с инструментом, `/list`, `/ps`, `/resume`.
 5. **Документация.** ADR-005 «LLM-провайдеры в отдельных модулях»; пометка «Обновление» в
