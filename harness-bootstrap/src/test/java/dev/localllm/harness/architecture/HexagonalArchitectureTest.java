@@ -15,6 +15,7 @@ import dev.localllm.harness.infrastructure.in.cli.handlers.CliExceptionHandler;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
+import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 /**
  * Module boundaries of variant B (hexagonal without DDD), see ADR-001.
@@ -27,7 +28,8 @@ class HexagonalArchitectureTest {
   @ArchTest
   static final ArchRule applicationDoesNotDependOnOuterModules = noClasses()
       .that().resideInAPackage("..application..")
-      .should().dependOnClassesThat().resideInAnyPackage("..infrastructure..", "..bootstrap..");
+      .should().dependOnClassesThat().resideInAnyPackage(
+          "..infrastructure..", "..adapter..", "..bootstrap..");
 
   @ArchTest
   static final ArchRule applicationIsFreeOfInfrastructureTechnology = noClasses()
@@ -55,9 +57,19 @@ class HexagonalArchitectureTest {
       .should().beInterfaces();
 
   @ArchTest
-  static final ArchRule infrastructureDoesNotDependOnBootstrap = noClasses()
+  static final ArchRule infrastructureDoesNotDependOnOuterModules = noClasses()
       .that().resideInAPackage("..infrastructure..")
-      .should().dependOnClassesThat().resideInAPackage("..bootstrap..");
+      .should().dependOnClassesThat().resideInAnyPackage("..adapter..", "..bootstrap..");
+
+  @ArchTest
+  static final ArchRule adaptersDependOnlyOnTheCore = noClasses()
+      .that().resideInAPackage("..adapter..")
+      .should().dependOnClassesThat().resideInAnyPackage("..infrastructure..", "..bootstrap..");
+
+  @ArchTest
+  static final ArchRule adaptersDoNotDependOnEachOther = slices()
+      .matching("dev.localllm.harness.adapter.(*)..")
+      .should().notDependOnEachOther();
 
   @ArchTest
   static final ArchRule mappersLiveInMapperPackages = classes()

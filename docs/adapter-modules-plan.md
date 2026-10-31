@@ -86,13 +86,21 @@ harness-bootstrap ──► harness-infrastructure ──────► harness
    `build.gradle.kts` применяет к подмодулям `java-library`, `api(":harness-application")` и
    имя jar `harness-adapter-<имя>`; в build-скриптах провайдеров остались только их
    собственные зависимости. `clean check` зелёный (286 тестов), оба jar в `harness.jar`.
-4. **Закрепить границы и проверить.** ArchUnit (`HexagonalArchitectureTest`): `application` не
+4. ✅ **Закрепить границы и проверить.** ArchUnit (`HexagonalArchitectureTest`): `application` не
    зависит от `..adapter..`; `infrastructure` не зависит от `..adapter..`; адаптеры не
    зависят от `..infrastructure..`, `..bootstrap..` и друг от друга (slices). Общий порог
    JaCoCo в `harness-bootstrap` учитывает новые модули (Ollama — уже в шаге 2). Прогон:
    `./gradlew clean check`,
    `-PincludeTags=live` (локальная Ollama), `-PincludeTags=native` (сборка образа и smoke),
    ручной сценарий REPL: чат, агентный ход с инструментом, `/list`, `/ps`, `/resume`.
+   *Итог:* в `HexagonalArchitectureTest` `application` и `infrastructure` не зависят от
+   `..adapter..`, адаптеры — от `..infrastructure..` и `..bootstrap..`, срезы
+   `adapter.(*)` не зависят друг от друга. Правила проверены временным классом-нарушителем
+   в пакете `adapter.anthropic` (оба падают). Общий порог JaCoCo учитывает оба модуля ещё с
+   шага 3. `clean check` — 288 тестов; live (`test -PincludeTags=live`, `qwen3.5:27b`) — 8;
+   native smoke — 8; REPL на native-бинарнике: чат, `/list`, `/ps`, `/mode agent` с
+   `read_file`, `/sessions` и `/resume` с продолжением диалога. Live запускается через
+   `test`, а не `check`: без обычных тестов пороги JaCoCo модулей не выполняются.
 5. **Документация.** ADR-005 «LLM-провайдеры в отдельных модулях»; пометка «Обновление» в
    таблице модулей ADR-001; граф модулей и таблица в `docs/build.md`; раздел архитектуры в
    `docs/java-ai-harness.md`; правила в `implementation-plan.md`. В `provider-plan.md`:
