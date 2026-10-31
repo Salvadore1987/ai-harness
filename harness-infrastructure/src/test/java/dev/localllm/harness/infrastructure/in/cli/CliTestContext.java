@@ -32,6 +32,7 @@ import dev.localllm.harness.application.service.ListModelsQueryService;
 import dev.localllm.harness.application.service.ListRunningModelsQueryService;
 import dev.localllm.harness.application.service.ListSessionsQueryService;
 import dev.localllm.harness.application.service.ListToolsQueryService;
+import dev.localllm.harness.application.service.PurgeSessionsService;
 import dev.localllm.harness.application.service.ResumeSessionService;
 import dev.localllm.harness.application.service.SaveAnswerService;
 import dev.localllm.harness.application.service.SendMessageService;
@@ -104,6 +105,7 @@ final class CliTestContext {
         new StartSessionService(applicationMapper),
         new ResumeSessionService(catalog, applicationMapper),
         new ListSessionsQueryService(catalog, applicationMapper),
+        new PurgeSessionsService(catalog, applicationMapper),
         new CompactSessionService(compactor, applicationMapper),
         new GetContextUsageQueryService(conversation, meter, applicationMapper),
         new SaveAnswerService(conversation, answerFiles, CLOCK, applicationMapper),

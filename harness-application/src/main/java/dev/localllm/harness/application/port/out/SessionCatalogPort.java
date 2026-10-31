@@ -35,4 +35,11 @@ public interface SessionCatalogPort {
    * @return stored sessions
    */
   List<SessionInfo> list(Path workingDirectory);
+
+  /**
+   * Deletes a stored session with its history; an unknown session is ignored.
+   *
+   * @param sessionId identifier of the session
+   */
+  void delete(SessionId sessionId);
 }

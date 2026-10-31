@@ -18,14 +18,15 @@ public class SlashCommandDispatcher {
 
   /** Names of the supported commands, used for completion. */
   public static final List<String> COMMANDS = List.of("/help", "/exit", "/clear", "/sessions",
-      "/resume", "/compact", "/context", "/save", "/model", "/list", "/ps", "/think", "/mode",
-      "/tools");
+      "/purge", "/resume", "/compact", "/context", "/save", "/model", "/list", "/ps", "/think",
+      "/mode", "/tools");
 
   private static final String HELP = """
       /help                 список команд
       /exit                 выход (также Ctrl+D или дважды Ctrl+C)
       /clear                новая сессия; текущая сохраняется
       /sessions             сохранённые сессии этой директории
+      /purge                удалить сессии этой директории, кроме текущей
       /resume [id]          продолжить сессию; без id — последнюю
       /compact              сжать историю: старая часть заменяется сводкой
       /context              сколько контекста занято
@@ -62,6 +63,7 @@ public class SlashCommandDispatcher {
         Map.entry("/help", (session, argument) -> println(HELP)),
         Map.entry("/clear", (session, argument) -> sessionCommands.clear(session)),
         Map.entry("/sessions", (session, argument) -> sessionCommands.sessions(session)),
+        Map.entry("/purge", (session, argument) -> sessionCommands.purge(session)),
         Map.entry("/resume", sessionCommands::resume),
         Map.entry("/compact", (session, argument) -> sessionCommands.compact(session)),
         Map.entry("/context", (session, argument) -> sessionCommands.context(session)),

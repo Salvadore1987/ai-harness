@@ -35,4 +35,9 @@ public final class FakeSessionCatalogPort implements SessionCatalogPort {
         .sorted(Comparator.comparing(SessionInfo::createdAt).reversed())
         .toList();
   }
+
+  @Override
+  public void delete(SessionId sessionId) {
+    sessions.remove(sessionId);
+  }
 }

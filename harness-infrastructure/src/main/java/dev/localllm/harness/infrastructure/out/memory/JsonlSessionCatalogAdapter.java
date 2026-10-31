@@ -48,4 +48,9 @@ public class JsonlSessionCatalogAdapter implements SessionCatalogPort {
         .sorted(Comparator.comparing(SessionInfo::createdAt).reversed())
         .toList();
   }
+
+  @Override
+  public void delete(SessionId sessionId) {
+    repository.deleteByConversationId(sessionId.toString());
+  }
 }

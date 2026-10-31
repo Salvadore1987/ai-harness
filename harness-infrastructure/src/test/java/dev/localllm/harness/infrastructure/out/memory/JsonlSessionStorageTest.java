@@ -219,6 +219,21 @@ class JsonlSessionStorageTest {
     assertThat(catalog.find(newer)).isPresent();
   }
 
+  @Test
+  void catalog_Delete_RemovesSessionFile() {
+    // Arrange
+    JsonlSessionCatalogAdapter catalog = new JsonlSessionCatalogAdapter(repository);
+    catalog.register(info());
+    repository.saveAll(id(), List.of(new UserMessage("q1")));
+
+    // Act
+    catalog.delete(sessionId);
+
+    // Assert
+    assertThat(file()).doesNotExist();
+    assertThat(catalog.find(sessionId)).isEmpty();
+  }
+
   private ChatMemoryConversationAdapter adapter() {
     return new ChatMemoryConversationAdapter(memory, repository,
         Mappers.getMapper(ChatMessageMemoryMapper.class),

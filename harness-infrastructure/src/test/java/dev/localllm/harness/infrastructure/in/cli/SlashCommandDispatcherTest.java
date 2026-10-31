@@ -4,6 +4,7 @@ import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
 
+import dev.localllm.harness.application.dto.result.SessionSummaryResult;
 import dev.localllm.harness.application.exception.LlmUnavailableException;
 import dev.localllm.harness.application.model.ChatChunk;
 import dev.localllm.harness.application.model.ChatMessage;
@@ -210,6 +211,32 @@ class SlashCommandDispatcherTest {
         .contains(stored.sessionId().toString().substring(0, 13))
         .contains("Explain the build")
         .contains("/resume <id>");
+  }
+
+  @Test
+  void dispatch_Purge_DeletesOtherSessionsAndKeepsCurrent() {
+    // Arrange
+    SessionInfo stored = register("Earlier work");
+    SessionInfo current = register("Current work");
+    session.resume(new SessionSummaryResult(current.sessionId(), current.title(),
+        current.model(), current.createdAt(), current.messageCount()));
+
+    // Act
+    dispatcher.dispatch("/purge", session);
+
+    // Assert
+    assertThat(context.catalog.find(stored.sessionId())).isEmpty();
+    assertThat(context.catalog.find(current.sessionId())).isPresent();
+    assertThat(context.terminal.plainText()).contains("Удалено сессий: 1");
+  }
+
+  @Test
+  void dispatch_PurgeWithoutStoredSessions_SaysNothingToDelete() {
+    // Act
+    dispatcher.dispatch("/purge", session);
+
+    // Assert
+    assertThat(context.terminal.plainText()).contains("Удалять нечего");
   }
 
   @Test
