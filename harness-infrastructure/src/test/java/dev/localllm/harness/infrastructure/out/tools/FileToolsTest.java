@@ -38,7 +38,7 @@ class FileToolsTest {
         List.of(MethodToolCallbackProvider.builder().toolObjects(new FileTools()).build()),
         McpTestSupport.noServers(),
         Mappers.getMapper(ToolSpecSpringAiMapper.class),
-        TestProperties.create(cwd.resolve("home"), "http://localhost:11434", false));
+        TestProperties.create(cwd.resolve("home"), false));
     write("Calc.java", "class Calc {\n  int add(int a, int b) {\n    return a + b;\n  }\n}\n");
     write("src/main/App.java", "class App {\n  // TODO start\n}\n");
     write("src/main/notes.txt", "TODO in text\n");

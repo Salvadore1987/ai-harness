@@ -10,9 +10,13 @@ Functional Requirements спецификации. Выполненные зад�
   `harness-infrastructure`, wiring в `harness-bootstrap/config/BeanConfig`; Command/Query на
   входе use case'ов; мапперы — MapStruct в пакетах `mapper/`; обработчики ошибок — в `handlers/`;
   без `var`, UUIDv7, `@NullMarked` в каждом пакете.
+- Адаптеры LLM-провайдеров — в своём подмодуле `harness-adapter:<провайдер>`, пакет
+  `dev.localllm.harness.adapter.<провайдер>`. Модуль зависит только от ядра; настройки
+  (`@ConfigurationProperties`) и native hints у него свои. Всё, что нужно и провайдеру, и
+  инфраструктуре, — в ядре ([ADR-005](adr/ADR-005-llm-adapter-modules.md)).
 - **Definition of Done этапа:**
   1. `./gradlew clean check` зелёный (NullAway, Checkstyle, PMD, SpotBugs, ArchUnit, JaCoCo:
-     `application` ≥ 80 %, `infrastructure` ≥ 50 %, общий ≥ 60 %);
+     `application` ≥ 80 %, `infrastructure` и `adapter:ollama` ≥ 50 %, общий ≥ 60 %);
   2. `./gradlew test -PincludeTags=live` зелёный против локальной `qwen3.5:27b`; с M6 также
      `./gradlew :harness-bootstrap:test -PincludeTags=native` (собирает образ, ADR-002);
   3. ручной сценарий этапа пройден в настоящем терминале;
@@ -28,6 +32,7 @@ Functional Requirements спецификации. Выполненные зад�
 | M4 | Запись файлов, shell, HTTP, запасной текстовый протокол | M3 | ✅ |
 | M5 | MCP-клиент (stdio + Streamable HTTP) | M3 | ✅ |
 | M6 | Native image (по ADR с замером) | M1–M5 | ✅ |
+| M7 | Провайдеры LLM с выбором в runtime: Ollama + Anthropic ([план](provider-plan.md)) | M1–M6 | — |
 
 M4 и M5 независимы друг от друга и могут идти параллельно после M3.
 

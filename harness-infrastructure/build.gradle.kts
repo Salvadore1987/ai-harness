@@ -8,7 +8,8 @@ dependencies {
 
     implementation(libs.spring.boot.starter)
     implementation(libs.spring.boot.starter.validation)
-    implementation(libs.spring.ai.starter.model.ollama)
+    // RestClient of the http_fetch tool.
+    implementation(libs.spring.boot.starter.restclient)
     implementation(libs.spring.ai.starter.mcp.client)
     implementation(libs.picocli)
     implementation(libs.jline)
@@ -17,15 +18,15 @@ dependencies {
     annotationProcessor(libs.spring.boot.configuration.processor)
     // Reachability metadata of the picocli commands for the native image.
     annotationProcessor(libs.picocli.codegen)
-    // Native DNS resolver for the Netty-based WebClient on macOS (the target platform).
-    runtimeOnly("io.netty:netty-resolver-dns-native-macos::osx-aarch_64")
-    runtimeOnly("io.netty:netty-resolver-dns-native-macos::osx-x86_64")
 
     testFixturesImplementation(platform(libs.spring.ai.bom))
     testFixturesImplementation(platform(libs.spring.boot.bom))
     testFixturesImplementation(libs.spring.ai.starter.mcp.client)
 
     testImplementation(testFixtures(project(":harness-application")))
+    // AgentLiveIT drives the built-in tools with a real Ollama model.
+    testImplementation(project(":harness-adapter:ollama"))
+    testImplementation(testFixtures(project(":harness-adapter:ollama")))
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.wiremock.standalone)
 }

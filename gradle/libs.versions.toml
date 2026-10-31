@@ -5,6 +5,7 @@ spring-ai = "2.0.2"
 picocli = "4.7.7"
 jline = "3.30.17"
 mapstruct = "1.6.3"
+anthropic-java = "3.2.0"
 java-uuid-generator = "5.2.0"
 jspecify = "1.0.1"
 errorprone-core = "2.51.0"
@@ -27,6 +28,7 @@ spring-context = { module = "org.springframework:spring-context" }
 spring-boot-starter = { module = "org.springframework.boot:spring-boot-starter" }
 spring-boot-starter-log4j2 = { module = "org.springframework.boot:spring-boot-starter-log4j2" }
 spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+spring-boot-starter-restclient = { module = "org.springframework.boot:spring-boot-starter-restclient" }
 spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
 spring-boot-configuration-processor = { module = "org.springframework.boot:spring-boot-configuration-processor" }
 spring-ai-starter-model-ollama = { module = "org.springframework.ai:spring-ai-starter-model-ollama" }
@@ -36,6 +38,7 @@ picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
 picocli-codegen = { module = "info.picocli:picocli-codegen", version.ref = "picocli" }
 jline = { module = "org.jline:jline", version.ref = "jline" }
 mapstruct = { module = "org.mapstruct:mapstruct", version.ref = "mapstruct" }
+anthropic-java = { module = "com.anthropic:anthropic-java", version.ref = "anthropic-java" }
 mapstruct-processor = { module = "org.mapstruct:mapstruct-processor", version.ref = "mapstruct" }
 java-uuid-generator = { module = "com.fasterxml.uuid:java-uuid-generator", version.ref = "java-uuid-generator" }
 jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }

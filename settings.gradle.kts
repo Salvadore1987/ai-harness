@@ -6,4 +6,11 @@ dependencyResolutionManagement {
     }
 }
 
-include("harness-application", "harness-infrastructure", "harness-bootstrap")
+include(
+    "harness-application",
+    "harness-infrastructure",
+    "harness-adapter",
+    "harness-adapter:ollama",
+    "harness-adapter:anthropic",
+    "harness-bootstrap"
+)

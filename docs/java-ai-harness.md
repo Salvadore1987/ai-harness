@@ -99,7 +99,7 @@ Ollama, MCP и описание инструментов (`ToolCallback`) бер
 
 ### High-Level Design
 
-Гексагональная архитектура, **вариант B** корпоративного стандарта (без DDD): Gradle-модули `harness-application` (ядро), `harness-infrastructure` (адаптеры), `harness-bootstrap` (сборка и wiring). Обоснование и отклонения — в [ADR-001](adr/ADR-001-architecture.md). Spring AI — инфраструктура и живёт только в адаптерах. Ядро не зависит от `org.springframework.ai`, JLine, Jackson и Reactor. Поэтому:
+Гексагональная архитектура, **вариант B** корпоративного стандарта (без DDD): Gradle-модули `harness-application` (ядро), `harness-infrastructure` (адаптеры CLI, памяти, MCP, инструментов, консоли), `harness-adapter:ollama` и `harness-adapter:anthropic` (LLM-провайдеры, зависят только от ядра), `harness-bootstrap` (сборка и wiring). Обоснование и отклонения — в [ADR-001](adr/ADR-001-architecture.md), вынос провайдеров — в [ADR-005](adr/ADR-005-llm-adapter-modules.md). Spring AI — инфраструктура и живёт только в адаптерах. Ядро не зависит от `org.springframework.ai`, JLine, Jackson и Reactor. Поэтому:
 - агентный цикл тестируется без Spring;
 - стратегия вызова инструментов меняется без изменения ядра.
 
@@ -136,7 +136,7 @@ Ollama, MCP и описание инструментов (`ToolCallback`) бер
 | Качество | Checkstyle, PMD, SpotBugs, JaCoCo (порог 60 % общий, 80 % `harness-application`) |
 | Маппинг | MapStruct (`org.mapstruct:mapstruct` + `mapstruct-processor`) |
 | ID | UUIDv7 (`com.fasterxml.uuid:java-uuid-generator`, `Generators.timeBasedEpochGenerator()`) |
-| Сборка | Gradle Kotlin DSL, три модуля; GraalVM native image (`nativeCompile`, [ADR-002](adr/ADR-002-native-image.md)) в `harness-bootstrap` + обёртка `bin/harness`; fat jar (`bootJar`) — для разработки |
+| Сборка | Gradle Kotlin DSL: ядро, инфраструктура, модули провайдеров под `harness-adapter`, bootstrap; GraalVM native image (`nativeCompile`, [ADR-002](adr/ADR-002-native-image.md)) в `harness-bootstrap` + обёртка `bin/harness`; fat jar (`bootJar`) — для разработки |
 | Тесты | JUnit 5, AssertJ, Mockito, WireMock, ArchUnit |
 
 ### Component Overview
@@ -160,15 +160,24 @@ harness-infrastructure   dev.localllm.harness.infrastructure
 │   ├── mapper   ReplCliMapper (MapStruct)
 │   └── handlers CliErrorReporter, LlmErrorHandler, ModelErrorHandler, FallbackErrorHandler,
 │                PicocliExceptionHandler (+ ToolErrorHandler в M3)
-├── out/ollama   OllamaChatAdapter, OllamaModelCatalogAdapter, OllamaErrorTranslator,
-│   │            toolcall/ (ToolCallMode, NativeToolCallMode, TextJsonToolCallMode, ToolBlockParser) (M3–M4)
-│   └── mapper   ChatMessageSpringAiMapper, ChatResponseSpringAiMapper, ModelInfoOllamaMapper (MapStruct)
 ├── out/memory   InMemoryConversationAdapter (M1); TokenWindowChatMemory, JsonlChatMemoryRepository (M2)
 ├── out/console  ConsoleTurnOutputAdapter
 ├── out/tools    FileTools, ShellTools, HttpTools, SpringAiToolExecutorAdapter (M3–M4)
 ├── out/mcp      McpConnector, McpServersFileReader, McpToolNaming, McpTextToolCallback,
 │                McpHttpHeaders, McpStartupReporter (M5)
-└── config       HarnessProperties (вкл. thinking), TerminalConfig
+└── config       HarnessProperties (вкл. thinking), TerminalConfig, NativeHintsConfig
+
+harness-adapter:ollama   dev.localllm.harness.adapter.ollama
+├── OllamaChatAdapter, OllamaModelCatalogAdapter, OllamaRunningModelsAdapter, OllamaContextBudgetAdapter,
+│   OllamaPsClient, OllamaErrorTranslator
+├── toolcall     ToolCallMode, NativeToolCallMode, TextJsonToolCallMode, ToolBlockParser, ToolCallModeResolver (M3–M4)
+├── mapper       ChatMessageSpringAiMapper, ChatResponseSpringAiMapper, ModelInfoOllamaMapper,
+│                RunningModelOllamaMapper, ToolCallSpringAiMapper (MapStruct)
+├── dto          OllamaRunningModels
+└── config       OllamaProperties (ollama-base-url, tool-call-modes, context.num-ctx), OllamaConfig + OllamaNativeHints
+
+harness-adapter:anthropic   dev.localllm.harness.adapter.anthropic
+└── (каркас: Anthropic Java SDK; адаптер Claude — provider-plan, шаги 7–8)
 
 harness-bootstrap   dev.localllm.harness.bootstrap
 ├── HarnessApplication
