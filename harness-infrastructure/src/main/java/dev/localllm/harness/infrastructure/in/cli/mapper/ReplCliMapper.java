@@ -5,6 +5,7 @@ import org.mapstruct.Mapping;
 
 import dev.localllm.harness.application.dto.command.CancelTurnCommand;
 import dev.localllm.harness.application.dto.command.CompactSessionCommand;
+import dev.localllm.harness.application.dto.command.PurgeSessionsCommand;
 import dev.localllm.harness.application.dto.command.ResumeSessionCommand;
 import dev.localllm.harness.application.dto.command.RunAgentTurnCommand;
 import dev.localllm.harness.application.dto.command.SaveAnswerCommand;
@@ -146,6 +147,15 @@ public interface ReplCliMapper {
    * @return list criteria
    */
   ListSessionsCriteria toListSessionsCriteria(ReplSession session);
+
+  /**
+   * Builds the command that deletes the stored sessions of the working directory.
+   *
+   * @param session CLI state with the working directory and the session to keep
+   * @return purge command
+   */
+  @Mapping(target = "currentSessionId", source = "sessionId")
+  PurgeSessionsCommand toPurgeSessionsCommand(ReplSession session);
 
   /**
    * Builds the context usage criteria for the current session and model.

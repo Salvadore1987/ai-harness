@@ -14,6 +14,7 @@ import dev.localllm.harness.application.port.in.GetContextUsageQuery;
 import dev.localllm.harness.application.port.in.ListModelsQuery;
 import dev.localllm.harness.application.port.in.ListRunningModelsQuery;
 import dev.localllm.harness.application.port.in.ListSessionsQuery;
+import dev.localllm.harness.application.port.in.PurgeSessionsUseCase;
 import dev.localllm.harness.application.port.in.ListToolsQuery;
 import dev.localllm.harness.application.port.in.ResumeSessionUseCase;
 import dev.localllm.harness.application.port.in.RunAgentTurnUseCase;
@@ -40,6 +41,7 @@ import dev.localllm.harness.application.service.GetContextUsageQueryService;
 import dev.localllm.harness.application.service.ListModelsQueryService;
 import dev.localllm.harness.application.service.ListRunningModelsQueryService;
 import dev.localllm.harness.application.service.ListSessionsQueryService;
+import dev.localllm.harness.application.service.PurgeSessionsService;
 import dev.localllm.harness.application.service.ListToolsQueryService;
 import dev.localllm.harness.application.service.ResumeSessionService;
 import dev.localllm.harness.application.service.SaveAnswerService;
@@ -258,6 +260,19 @@ public class BeanConfig {
   public ListSessionsQuery listSessionsQuery(
       SessionCatalogPort sessionCatalogPort, TurnApplicationMapper mapper) {
     return new ListSessionsQueryService(sessionCatalogPort, mapper);
+  }
+
+  /**
+   * Stored sessions purge use case.
+   *
+   * @param sessionCatalogPort session metadata storage
+   * @param mapper result mapper
+   * @return the use case
+   */
+  @Bean
+  public PurgeSessionsUseCase purgeSessionsUseCase(
+      SessionCatalogPort sessionCatalogPort, TurnApplicationMapper mapper) {
+    return new PurgeSessionsService(sessionCatalogPort, mapper);
   }
 
   /**

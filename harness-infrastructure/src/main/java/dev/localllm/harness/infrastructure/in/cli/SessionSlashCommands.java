@@ -11,18 +11,21 @@ import org.springframework.stereotype.Component;
 
 import dev.localllm.harness.application.dto.result.CompactionResult;
 import dev.localllm.harness.application.dto.result.ContextUsageResult;
+import dev.localllm.harness.application.dto.result.PurgedSessionsResult;
 import dev.localllm.harness.application.dto.result.SavedAnswerResult;
 import dev.localllm.harness.application.dto.result.SessionSummaryResult;
 import dev.localllm.harness.application.port.in.CompactSessionUseCase;
 import dev.localllm.harness.application.port.in.GetContextUsageQuery;
 import dev.localllm.harness.application.port.in.ListSessionsQuery;
+import dev.localllm.harness.application.port.in.PurgeSessionsUseCase;
 import dev.localllm.harness.application.port.in.ResumeSessionUseCase;
 import dev.localllm.harness.application.port.in.SaveAnswerUseCase;
 import dev.localllm.harness.application.port.in.StartSessionUseCase;
 import dev.localllm.harness.infrastructure.in.cli.mapper.ReplCliMapper;
 
 /**
- * Slash commands about the session: {@code /clear /sessions /resume /compact /context /save}.
+ * Slash commands about the session: {@code /clear /sessions /purge /resume /compact
+ * /context /save}.
  */
 @Component
 public class SessionSlashCommands {
@@ -36,6 +39,7 @@ public class SessionSlashCommands {
   private final StartSessionUseCase startSessionUseCase;
   private final ResumeSessionUseCase resumeSessionUseCase;
   private final ListSessionsQuery listSessionsQuery;
+  private final PurgeSessionsUseCase purgeSessionsUseCase;
   private final CompactSessionUseCase compactSessionUseCase;
   private final GetContextUsageQuery getContextUsageQuery;
   private final SaveAnswerUseCase saveAnswerUseCase;
@@ -48,6 +52,7 @@ public class SessionSlashCommands {
    * @param startSessionUseCase starts a new session for {@code /clear}
    * @param resumeSessionUseCase finds the session for {@code /resume}
    * @param listSessionsQuery lists sessions for {@code /sessions}
+   * @param purgeSessionsUseCase deletes sessions for {@code /purge}
    * @param compactSessionUseCase compacts the history for {@code /compact}
    * @param getContextUsageQuery measures the context for {@code /context}
    * @param saveAnswerUseCase saves the latest answer for {@code /save}
@@ -58,6 +63,7 @@ public class SessionSlashCommands {
       StartSessionUseCase startSessionUseCase,
       ResumeSessionUseCase resumeSessionUseCase,
       ListSessionsQuery listSessionsQuery,
+      PurgeSessionsUseCase purgeSessionsUseCase,
       CompactSessionUseCase compactSessionUseCase,
       GetContextUsageQuery getContextUsageQuery,
       SaveAnswerUseCase saveAnswerUseCase,
@@ -66,6 +72,7 @@ public class SessionSlashCommands {
     this.startSessionUseCase = startSessionUseCase;
     this.resumeSessionUseCase = resumeSessionUseCase;
     this.listSessionsQuery = listSessionsQuery;
+    this.purgeSessionsUseCase = purgeSessionsUseCase;
     this.compactSessionUseCase = compactSessionUseCase;
     this.getContextUsageQuery = getContextUsageQuery;
     this.saveAnswerUseCase = saveAnswerUseCase;
@@ -105,6 +112,19 @@ public class SessionSlashCommands {
     }
     writer.println("Продолжить: /resume <id>");
     writer.flush();
+  }
+
+  /**
+   * {@code /purge}: deletes the stored sessions of the working directory except the current one.
+   *
+   * @param session CLI state
+   */
+  public void purge(ReplSession session) {
+    PurgedSessionsResult result =
+        purgeSessionsUseCase.execute(mapper.toPurgeSessionsCommand(session));
+    println(result.deletedCount() == 0
+        ? "Удалять нечего: других сессий в этой директории нет"
+        : "Удалено сессий: " + result.deletedCount() + ". Текущая сессия сохранена");
   }
 
   /**

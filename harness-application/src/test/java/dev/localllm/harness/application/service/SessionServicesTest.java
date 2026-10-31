@@ -8,9 +8,11 @@ import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 
 import dev.localllm.harness.application.dto.command.CancelTurnCommand;
+import dev.localllm.harness.application.dto.command.PurgeSessionsCommand;
 import dev.localllm.harness.application.dto.command.ResumeSessionCommand;
 import dev.localllm.harness.application.dto.command.StartSessionCommand;
 import dev.localllm.harness.application.dto.query.ListSessionsCriteria;
+import dev.localllm.harness.application.dto.result.PurgedSessionsResult;
 import dev.localllm.harness.application.dto.result.SessionResult;
 import dev.localllm.harness.application.dto.result.SessionSummaryResult;
 import dev.localllm.harness.application.exception.SessionNotFoundException;
@@ -118,6 +120,39 @@ class SessionServicesTest {
 
     // Assert
     assertThat(result).extracting(SessionSummaryResult::title).containsExactly("newer", "older");
+  }
+
+  @Test
+  void purgeSessions_ForDirectory_DeletesItsSessionsExceptCurrent() {
+    // Arrange
+    SessionInfo current = register(CWD, "current", "2026-10-29T10:00:00Z");
+    register(CWD, "older", "2026-10-28T10:00:00Z");
+    register(CWD, "oldest", "2026-10-27T10:00:00Z");
+    SessionInfo foreign = register(OTHER, "elsewhere", "2026-10-30T10:00:00Z");
+    PurgeSessionsService service = new PurgeSessionsService(catalog, mapper);
+
+    // Act
+    PurgedSessionsResult result =
+        service.execute(new PurgeSessionsCommand(CWD, current.sessionId()));
+
+    // Assert
+    assertThat(result.deletedCount()).isEqualTo(2);
+    assertThat(catalog.list(CWD)).extracting(SessionInfo::title).containsExactly("current");
+    assertThat(catalog.find(foreign.sessionId())).isPresent();
+  }
+
+  @Test
+  void purgeSessions_WithoutCurrentSession_DeletesAllSessionsOfDirectory() {
+    // Arrange
+    register(CWD, "one", "2026-10-29T10:00:00Z");
+    PurgeSessionsService service = new PurgeSessionsService(catalog, mapper);
+
+    // Act
+    PurgedSessionsResult result = service.execute(new PurgeSessionsCommand(CWD, null));
+
+    // Assert
+    assertThat(result.deletedCount()).isEqualTo(1);
+    assertThat(catalog.list(CWD)).isEmpty();
   }
 
   @Test

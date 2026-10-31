@@ -9,6 +9,7 @@ import dev.localllm.harness.application.dto.command.ToggleThinkingCommand;
 import dev.localllm.harness.application.dto.result.CompactionResult;
 import dev.localllm.harness.application.dto.result.ContextUsageResult;
 import dev.localllm.harness.application.dto.result.ModelSummaryResult;
+import dev.localllm.harness.application.dto.result.PurgedSessionsResult;
 import dev.localllm.harness.application.dto.result.RunningModelResult;
 import dev.localllm.harness.application.dto.result.SavedAnswerResult;
 import dev.localllm.harness.application.dto.result.SessionResult;
@@ -123,4 +124,13 @@ public interface TurnApplicationMapper {
   @Mapping(target = "file", source = "file")
   @Mapping(target = "characters", source = "characters")
   SavedAnswerResult toSavedAnswerResult(Path file, int characters);
+
+  /**
+   * Describes deleted sessions.
+   *
+   * @param deletedCount number of deleted sessions
+   * @return purge result
+   */
+  @Mapping(target = "deletedCount", source = "deletedCount")
+  PurgedSessionsResult toPurgedSessionsResult(Integer deletedCount);
 }
