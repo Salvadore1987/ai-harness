@@ -13,6 +13,7 @@ import org.springframework.validation.annotation.Validated;
  * Ollama settings bound from {@code harness.*}, next to the provider-neutral
  * {@code HarnessProperties} of the same prefix.
  *
+ * @param model model a new Ollama session starts with
  * @param ollamaBaseUrl address of the Ollama server, also used in error messages
  * @param context context window requested from Ollama
  * @param toolCallModes tool call mode by model name prefix; the longest matching prefix wins
@@ -21,6 +22,7 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties("harness")
 @Validated
 public record OllamaProperties(
+    @NotBlank String model,
     @NotBlank String ollamaBaseUrl,
     @NotNull @Valid Context context,
     @NotNull Map<String, ToolCallModeType> toolCallModes,

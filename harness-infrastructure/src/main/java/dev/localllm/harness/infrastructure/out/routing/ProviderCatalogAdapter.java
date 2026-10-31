@@ -4,37 +4,32 @@ import java.util.List;
 
 import org.springframework.stereotype.Component;
 
-import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.ProviderInfo;
 import dev.localllm.harness.application.port.out.ProviderCatalogPort;
-import dev.localllm.harness.infrastructure.config.HarnessProperties;
+import dev.localllm.harness.infrastructure.out.routing.mapper.ProviderInfoMapper;
 
 /**
- * Reports Ollama as the only available provider: the Anthropic adapter does not exist yet.
- *
- * <p>Ollama starts with {@code harness.model}; Anthropic is listed as unavailable with the model
- * it will start with once its adapter and settings are in place.
+ * Describes the providers whose modules are on the classpath.
  */
 @Component
 public class ProviderCatalogAdapter implements ProviderCatalogPort {
 
-  private static final String ANTHROPIC_DEFAULT_MODEL = "claude-opus-5-5";
-
-  private final List<ProviderInfo> providers;
+  private final LlmProviderRegistry registry;
+  private final ProviderInfoMapper mapper;
 
   /**
    * Creates the adapter.
    *
-   * @param properties harness settings with the start model of Ollama
+   * @param registry provider adapters
+   * @param mapper reads the provider state from the adapters
    */
-  public ProviderCatalogAdapter(HarnessProperties properties) {
-    this.providers = List.of(
-        new ProviderInfo(LlmProvider.OLLAMA, true, properties.model()),
-        new ProviderInfo(LlmProvider.ANTHROPIC, false, ANTHROPIC_DEFAULT_MODEL));
+  public ProviderCatalogAdapter(LlmProviderRegistry registry, ProviderInfoMapper mapper) {
+    this.registry = registry;
+    this.mapper = mapper;
   }
 
   @Override
   public List<ProviderInfo> listProviders() {
-    return providers;
+    return registry.all().stream().map(mapper::toProviderInfo).toList();
   }
 }

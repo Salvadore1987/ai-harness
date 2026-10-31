@@ -1,5 +1,6 @@
 /**
- * Adapters that answer for all LLM providers at once.
+ * Adapters of the core ports that route every call to the adapters of the requested LLM
+ * provider.
  */
 @NullMarked
 package dev.localllm.harness.infrastructure.out.routing;

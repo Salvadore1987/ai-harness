@@ -78,7 +78,7 @@ native tool calling), перенос истории между провайде�
    с моделями одного провайдера. Тестов 296 (+10); `clean check`, live (8), native smoke (8)
    и REPL на native-бинарнике (чат, `/list`, `/model`, `/think`, `/context`, `/compact`,
    `/resume`) зелёные.
-3. **Маршрутизация в инфраструктуре.** SPI `LlmProviderAdapters` (провайдер, chat, catalog,
+3. ✅ **Маршрутизация в инфраструктуре.** SPI `LlmProviderAdapters` (провайдер, chat, catalog,
    context budget, доступность) — интерфейс в `harness-application/port/out`, без Spring;
    реализацию для Ollama даёт `harness-adapter:ollama`. Маршрутизаторы `RoutingChatModelAdapter`,
    `RoutingModelCatalogAdapter`, `RoutingContextBudgetAdapter`, `ProviderCatalogAdapter` в
@@ -87,6 +87,20 @@ native tool calling), перенос истории между провайде�
    изменения поведения; `RunningModelsPort` остаётся за Ollama. Маршрутизаторы видят
    провайдеров только через SPI: правило ArchUnit «`..infrastructure..` не зависит от
    `..adapter..`» уже действует.
+   *Итог и отличия от плана:* `LlmProviderAdapters` — один плоский интерфейс (`provider`,
+   `isAvailable`, `defaultModel`, `stream`, `cancelActive`, `listModels`, `findModel`,
+   `contextLength`) без параметра провайдера в методах. Ollama реализует его фасадом
+   `OllamaProviderAdapters`; `OllamaChatAdapter`, `OllamaModelCatalogAdapter` и
+   `OllamaContextBudgetAdapter` больше не реализуют порты, поэтому в контексте ровно один бин
+   каждого порта — маршрутизатор. Общий поиск — `out/routing/LlmProviderRegistry` (два модуля
+   на одного провайдера — ошибка при старте; провайдер без модуля или недоступный —
+   `ProviderUnavailableException`). `ProviderCatalogAdapter` перечисляет только провайдеров с
+   модулем (MapStruct `ProviderInfoMapper`), так что временная запись Anthropic с моделью в
+   коде из шага 2 ушла. Модель по умолчанию Ollama — новое поле `OllamaProperties.model` на том
+   же ключе `harness.model`. `AgentLiveIT` идёт через `RoutingChatModelAdapter`. Тестов 305
+   (+9, фейк SPI — `FakeLlmProviderAdapters`); `clean check`, live (8), native smoke (8) и REPL
+   на native-бинарнике (чат, `/list`, `/ps`, `/model`, `/context`, агентный ход с `read_file`,
+   `/resume`) зелёные.
 4. **Настройки.** `HarnessProperties`: `provider` (стартовый, по умолчанию `ollama`).
    `AnthropicProperties` в `harness-adapter:anthropic` (префикс `harness.anthropic`):
    `apiKey` (`${ANTHROPIC_API_KEY:}`), `baseUrl`, `model` (по умолчанию `claude-opus-5-5`),

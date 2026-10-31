@@ -71,7 +71,7 @@ class OllamaLiveIT {
     OllamaModelCatalogAdapter adapter = OllamaTestSupport.catalogAdapter(BASE_URL);
 
     // Act & Assert
-    assertThat(adapter.findModel(LlmProvider.OLLAMA, OllamaTestSupport.MODEL))
+    assertThat(adapter.findModel(OllamaTestSupport.MODEL))
         .hasValueSatisfying(model -> assertThat(model.capabilities())
             .contains(ModelCapability.THINKING, ModelCapability.TOOLS));
   }

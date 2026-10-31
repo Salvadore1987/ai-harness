@@ -33,6 +33,7 @@ import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.ToolCall;
 import dev.localllm.harness.application.model.TurnStatus;
+import dev.localllm.harness.application.port.out.ChatModelPort;
 import dev.localllm.harness.application.service.AgentLoopService;
 import dev.localllm.harness.application.service.ContextMeter;
 import dev.localllm.harness.application.service.ConversationCompactor;
@@ -44,6 +45,8 @@ import dev.localllm.harness.infrastructure.config.HarnessProperties;
 import dev.localllm.harness.infrastructure.out.mcp.McpConnector;
 import dev.localllm.harness.infrastructure.out.mcp.McpStartupReporter;
 import dev.localllm.harness.infrastructure.out.mcp.McpTestSupport;
+import dev.localllm.harness.infrastructure.out.routing.LlmProviderRegistry;
+import dev.localllm.harness.infrastructure.out.routing.RoutingChatModelAdapter;
 import dev.localllm.harness.infrastructure.out.tools.mapper.ToolSpecSpringAiMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -157,18 +160,20 @@ class AgentLiveIT {
   private AgentLoopService service(OllamaChatAdapter chatAdapter,
       RecordingTurnOutputPort output, McpConnector mcpConnector) {
     InMemoryConversationPort conversation = new InMemoryConversationPort();
+    ChatModelPort chatModel = new RoutingChatModelAdapter(new LlmProviderRegistry(
+        List.of(OllamaTestSupport.providerAdapters(chatAdapter, BASE_URL))));
     HarnessProperties properties = TestProperties.create(cwd.resolve("home"), false);
     ContextMeter meter = new ContextMeter(
         new FixedContextBudgetPort(OllamaTestProperties.NUM_CTX),
         new ContextPolicy(0.8, 0.25, 3.5));
     return new AgentLoopService(conversation,
         new SessionRegistrar(new FakeSessionCatalogPort(), Clock.systemUTC()),
-        chatAdapter,
+        chatModel,
         new SpringAiToolExecutorAdapter(
             List.of(MethodToolCallbackProvider.builder().toolObjects(new FileTools(),
                 new ShellTools(properties), new HttpTools(properties)).build()),
             mcpConnector, Mappers.getMapper(ToolSpecSpringAiMapper.class), properties),
-        output, new ConversationCompactor(conversation, chatAdapter, meter),
+        output, new ConversationCompactor(conversation, chatModel, meter),
         new TurnCancellation(), new AgentPolicy(10, 2),
         Mappers.getMapper(TurnApplicationMapper.class));
   }

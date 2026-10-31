@@ -37,7 +37,7 @@ public final class OllamaTestProperties {
    */
   public static OllamaProperties create(String baseUrl, Map<String, ToolCallModeType> modes,
       ToolCallModeType defaultMode) {
-    return new OllamaProperties(baseUrl, new OllamaProperties.Context(NUM_CTX), modes,
-        defaultMode);
+    return new OllamaProperties(OllamaTestSupport.MODEL, baseUrl,
+        new OllamaProperties.Context(NUM_CTX), modes, defaultMode);
   }
 }

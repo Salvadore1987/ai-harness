@@ -24,7 +24,6 @@ import dev.localllm.harness.application.model.ChatCompletion;
 import dev.localllm.harness.application.model.ChatRequest;
 import dev.localllm.harness.application.model.TokenUsage;
 import dev.localllm.harness.application.model.TurnStatus;
-import dev.localllm.harness.application.port.out.ChatModelPort;
 
 /**
  * Streams answers from Ollama through the Spring AI {@link ChatClient}.
@@ -41,7 +40,7 @@ import dev.localllm.harness.application.port.out.ChatModelPort;
  * a single token, a known failure of the MLX runner, is requested once more.
  */
 @Component
-public class OllamaChatAdapter implements ChatModelPort {
+public class OllamaChatAdapter {
 
   private static final Logger log = LoggerFactory.getLogger(OllamaChatAdapter.class);
 
@@ -70,7 +69,13 @@ public class OllamaChatAdapter implements ChatModelPort {
     this.toolCallModes = toolCallModes;
   }
 
-  @Override
+  /**
+   * Generates the next assistant message, blocking until the stream ends.
+   *
+   * @param request model, history and thinking flag
+   * @param chunkConsumer receives every thinking and content fragment as it arrives
+   * @return the outcome of the turn
+   */
   public ChatCompletion stream(ChatRequest request, Consumer<ChatChunk> chunkConsumer) {
     long startedAt = System.nanoTime();
     ChatCompletion completion = streamOnce(request, chunkConsumer, startedAt);
@@ -114,7 +119,10 @@ public class OllamaChatAdapter implements ChatModelPort {
     return accumulator.complete(status, startedAt);
   }
 
-  @Override
+  /**
+   * Cancels the running stream, if any; the blocked {@link #stream} call then returns with
+   * status {@code CANCELLED}.
+   */
   public void cancelActive() {
     ActiveTurn turn = activeTurn.get();
     if (turn != null) {

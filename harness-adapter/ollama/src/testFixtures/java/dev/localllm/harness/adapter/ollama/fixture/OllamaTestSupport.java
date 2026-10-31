@@ -7,11 +7,16 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.api.OllamaApi;
 import org.springframework.ai.ollama.api.OllamaChatOptions;
+import org.springframework.web.client.RestClient;
 
 import dev.localllm.harness.adapter.ollama.OllamaChatAdapter;
+import dev.localllm.harness.adapter.ollama.OllamaContextBudgetAdapter;
 import dev.localllm.harness.adapter.ollama.OllamaErrorTranslator;
 import dev.localllm.harness.adapter.ollama.OllamaModelCatalogAdapter;
+import dev.localllm.harness.adapter.ollama.OllamaProviderAdapters;
+import dev.localllm.harness.adapter.ollama.OllamaPsClient;
 import dev.localllm.harness.adapter.ollama.config.OllamaProperties.ToolCallModeType;
+import dev.localllm.harness.adapter.ollama.config.OllamaProperties;
 import dev.localllm.harness.adapter.ollama.mapper.ChatMessageSpringAiMapper;
 import dev.localllm.harness.adapter.ollama.mapper.ChatResponseSpringAiMapper;
 import dev.localllm.harness.adapter.ollama.mapper.ModelInfoOllamaMapper;
@@ -82,6 +87,22 @@ public final class OllamaTestSupport {
         Mappers.getMapper(ModelInfoOllamaMapper.class),
         translator(baseUrl),
         toolCallModes(Map.of("codellama", ToolCallModeType.TEXT_JSON)));
+  }
+
+  /**
+   * Provider adapters over the given chat adapter, as the Ollama module registers them.
+   *
+   * @param chatAdapter chat adapter to use
+   * @param baseUrl Ollama address of the catalog and the context window
+   * @return the provider adapters
+   */
+  public static OllamaProviderAdapters providerAdapters(
+      OllamaChatAdapter chatAdapter, String baseUrl) {
+    OllamaProperties properties = OllamaTestProperties.create(baseUrl);
+    return new OllamaProviderAdapters(chatAdapter, catalogAdapter(baseUrl),
+        new OllamaContextBudgetAdapter(new OllamaPsClient(RestClient.builder(), properties),
+            properties),
+        properties);
   }
 
   /**

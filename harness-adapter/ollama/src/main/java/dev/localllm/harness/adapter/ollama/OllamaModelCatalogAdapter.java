@@ -12,21 +12,18 @@ import org.springframework.stereotype.Component;
 import dev.localllm.harness.adapter.ollama.config.OllamaProperties.ToolCallModeType;
 import dev.localllm.harness.adapter.ollama.mapper.ModelInfoOllamaMapper;
 import dev.localllm.harness.adapter.ollama.toolcall.ToolCallModeResolver;
-import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.ModelCapability;
 import dev.localllm.harness.application.model.ModelInfo;
-import dev.localllm.harness.application.port.out.ModelCatalogPort;
 
 /**
  * Reads installed models and their capabilities from {@code /api/tags} and {@code /api/show}.
  *
  * <p>A model configured for the {@code text-json} tool call mode gets the
  * {@link ModelCapability#TOOLS} capability even if it has no native tool calling: the harness
- * describes the tools in the prompt. The {@code provider} argument is not checked: only requests
- * for {@link LlmProvider#OLLAMA} reach this adapter.
+ * describes the tools in the prompt.
  */
 @Component
-public class OllamaModelCatalogAdapter implements ModelCatalogPort {
+public class OllamaModelCatalogAdapter {
 
   private final OllamaApi ollamaApi;
   private final ModelInfoOllamaMapper mapper;
@@ -52,8 +49,12 @@ public class OllamaModelCatalogAdapter implements ModelCatalogPort {
     this.toolCallModes = toolCallModes;
   }
 
-  @Override
-  public List<ModelInfo> listModels(LlmProvider provider) {
+  /**
+   * Returns all installed models.
+   *
+   * @return installed models with their capabilities
+   */
+  public List<ModelInfo> listModels() {
     List<OllamaApi.Model> models;
     try {
       models = Objects.requireNonNullElse(ollamaApi.listModels().models(), List.of());
@@ -62,17 +63,18 @@ public class OllamaModelCatalogAdapter implements ModelCatalogPort {
     }
     return models.stream()
         .map(OllamaApi.Model::name)
-        .map(this::showModel)
+        .map(this::findModel)
         .flatMap(Optional::stream)
         .toList();
   }
 
-  @Override
-  public Optional<ModelInfo> findModel(LlmProvider provider, String name) {
-    return showModel(name);
-  }
-
-  private Optional<ModelInfo> showModel(String name) {
+  /**
+   * Looks up one installed model.
+   *
+   * @param name model tag
+   * @return the model, or empty if it is not installed
+   */
+  public Optional<ModelInfo> findModel(String name) {
     try {
       OllamaApi.ShowModelResponse response =
           ollamaApi.showModel(new OllamaApi.ShowModelRequest(name));
