@@ -101,11 +101,18 @@ harness-bootstrap ──► harness-infrastructure ──────► harness
    native smoke — 8; REPL на native-бинарнике: чат, `/list`, `/ps`, `/mode agent` с
    `read_file`, `/sessions` и `/resume` с продолжением диалога. Live запускается через
    `test`, а не `check`: без обычных тестов пороги JaCoCo модулей не выполняются.
-5. **Документация.** ADR-005 «LLM-провайдеры в отдельных модулях»; пометка «Обновление» в
+5. ✅ **Документация.** ADR-005 «LLM-провайдеры в отдельных модулях»; пометка «Обновление» в
    таблице модулей ADR-001; граф модулей и таблица в `docs/build.md`; раздел архитектуры в
    `docs/java-ai-harness.md`; правила в `implementation-plan.md`. В `provider-plan.md`:
    ссылка на этот план как на предварительный этап, SPI — в `port/out` ядра, адаптер Claude —
    в `harness-adapter:anthropic`, ADR о провайдерах становится ADR-006.
+   *Итог:* добавлен [ADR-005](adr/ADR-005-llm-adapter-modules.md) (раскладка `harness-adapter`,
+   границы, настройки и hints провайдера, отвергнутые варианты). Обновлены ADR-001, `build.md`
+   (граф, таблица модулей, общий build-скрипт адаптеров, hints, live через `test`),
+   `java-ai-harness.md` (High-Level Design, стек, Component Overview), правило и DoD в
+   `implementation-plan.md`, таблица модулей в README. В `provider-plan.md` дополнительно:
+   `AnthropicProperties` и hints — в модуле Anthropic (шаг 4), порог JaCoCo модуля — 50 %
+   (шаг 10).
 
 ## Риски
 

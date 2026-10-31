@@ -26,6 +26,11 @@ Harness — локальный CLI-агент поверх Ollama. Бизнес-
 Базовый пакет — `dev.localllm.harness`. Application-сервисы не помечаются Spring-аннотациями и
 связываются с портами в `bootstrap/config/BeanConfig`.
 
+*Обновление:* адаптеры LLM-провайдеров вынесены из `harness-infrastructure` в подмодули
+`harness-adapter:ollama` (бывший `out/ollama`, пакет `dev.localllm.harness.adapter.ollama`) и
+`harness-adapter:anthropic`; они зависят только от `harness-application` — см.
+[ADR-005](ADR-005-llm-adapter-modules.md).
+
 ### 2. Платформа
 
 Java 25, Spring Boot **4.1.2**, Spring AI **2.0.2** (собрана против Boot 4.1.2, Framework 7.0.10,
@@ -78,5 +83,5 @@ provided-зависимости, 3.2.4). ArchUnit разрешает `org.spring
 ## Последствия
 
 - Ядро тестируется на фейках портов без Spring; ArchUnit стережёт границы модулей.
-- Цена — больше классов и три модуля для небольшого CLI; принято ради подменяемости адаптеров
+- Цена — больше классов и три модуля (с ADR-005 — ещё модули провайдеров) для небольшого CLI; принято ради подменяемости адаптеров
   (text-json / native tool calling, in-memory / JSONL память).

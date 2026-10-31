@@ -221,7 +221,9 @@ harness:
 | Модуль | Содержимое |
 |---|---|
 | `harness-application` | Ядро без фреймворков: модели, порты, use case'ы, мапперы |
-| `harness-infrastructure` | Адаптеры: CLI, Ollama, консоль, хранение сессий, инструменты, MCP-клиент |
+| `harness-infrastructure` | Адаптеры: CLI, консоль, хранение сессий, инструменты, MCP-клиент |
+| `harness-adapter:ollama` | Провайдер Ollama (Spring AI) |
+| `harness-adapter:anthropic` | Провайдер Claude (Anthropic Java SDK), пока каркас |
 | `harness-bootstrap` | Точка входа, конфигурация Spring, сборка `bootJar` и native image |
 
 ## Документация

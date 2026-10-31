@@ -40,17 +40,31 @@ Gradle ставить не нужно — используется wrapper (`./g
 ## Модули
 
 ```text
-harness-bootstrap ──► harness-infrastructure ──► harness-application
+harness-bootstrap ──► harness-infrastructure ──────────► harness-application
+        │                                                       ▲
+        ├──────────► harness-adapter:ollama ────────────────────┤
+        └──────────► harness-adapter:anthropic ─────────────────┘
 ```
 
 | Модуль | Плагины | Содержимое |
 |---|---|---|
 | `harness-application` | `java-library`, `java-test-fixtures` | Ядро без фреймворков: модели, порты, use case'ы, MapStruct-мапперы |
-| `harness-infrastructure` | `java-library`, `java-test-fixtures` | Адаптеры: CLI (Picocli + JLine), Ollama и MCP (Spring AI), консоль, память, инструменты |
+| `harness-infrastructure` | `java-library`, `java-test-fixtures` | Адаптеры: CLI (Picocli + JLine), MCP (Spring AI), консоль, память, инструменты, файлы |
+| `harness-adapter` | — | Родитель модулей LLM-провайдеров, без кода |
+| `harness-adapter:ollama` | `java-library`, `java-test-fixtures` | Провайдер Ollama (Spring AI): чат, каталог моделей, `/ps`, бюджет контекста, режимы вызова инструментов, `OllamaProperties` |
+| `harness-adapter:anthropic` | `java-library` | Провайдер Claude (Anthropic Java SDK); пока каркас |
 | `harness-bootstrap` | Spring Boot, GraalVM Native Build Tools, Spring AOT | Точка входа, `BeanConfig`, `application.yml`, Log4j2, `bootJar`, `nativeCompile` |
 
-Зависимость направлена только внутрь; границы проверяют ArchUnit-тесты в `harness-bootstrap`.
-Test fixtures первых двух модулей переиспользуются тестами модулей выше.
+Зависимость направлена только внутрь. Модуль провайдера зависит только от ядра — не от
+инфраструктуры и не от других провайдеров ([ADR-005](adr/ADR-005-llm-adapter-modules.md)).
+Границы проверяют ArchUnit-тесты в `harness-bootstrap`. Test fixtures ядра, инфраструктуры и
+модуля Ollama переиспользуются тестами других модулей.
+
+`harness-adapter/build.gradle.kts` задаёт всем провайдерам `java-library`, зависимость
+`api(project(":harness-application"))` и имя jar `harness-adapter-<провайдер>`; в
+build-скрипте провайдера — только его собственные зависимости. Новый провайдер — подмодуль в
+`settings.gradle.kts` и `implementation(project(":harness-adapter:<провайдер>"))` в
+`harness-bootstrap`; общий порог покрытия учитывает его через список `coveredProjects`.
 
 ## Версии зависимостей
 
@@ -81,7 +95,7 @@ Spring Boot 4.1 и Spring AI 2.0, которые подключаются кор
 | Checkstyle | `config/checkstyle/checkstyle.xml` | Строка до 100 символов, отступ 2 пробела, без `*`-импортов, обязательные фигурные скобки, Javadoc публичных типов и методов, именование; ноль предупреждений |
 | PMD | `config/pmd/ruleset.xml` | Сложность метода: цикломатическая 10, когнитивная 15, NPath 200, вложенность `if` 3; пустые `catch`, неиспользуемые поля, методы и переменные |
 | SpotBugs | `config/spotbugs/exclude.xml` | Ошибки уровня HIGH; HTML-отчёт в `build/reports/spotbugs` |
-| JaCoCo | `build.gradle.kts` модулей | Покрытие строк: application ≥ 80 %, infrastructure ≥ 50 %, весь проект ≥ 60 % |
+| JaCoCo | `build.gradle.kts` модулей | Покрытие строк: application ≥ 80 %, infrastructure и adapter:ollama ≥ 50 %, весь проект ≥ 60 % |
 
 Сгенерированный код в проверки не попадает: `*MapperImpl` (MapStruct) исключены из PMD,
 SpotBugs и покрытия, код Spring AOT — из Checkstyle, PMD и SpotBugs.
@@ -111,7 +125,8 @@ Spring AOT. Почему native и какие замеры легли в осн�
 - Reachability metadata для того, что читается рефлексией, регистрирует
   `harness-infrastructure/.../config/NativeHintsConfig.java`; команды picocli описывает
   `picocli-codegen` при компиляции. Новый `@Tool`-класс, DTO для Jackson или валидируемый
-  record настроек нужно добавить в `NativeHintsConfig`.
+  record настроек нужно добавить в `NativeHintsConfig`. Классы провайдера регистрирует его
+  собственный `RuntimeHintsRegistrar` (у Ollama — `OllamaConfig.OllamaNativeHints`).
 - Spring AOT фиксирует условия при сборке: `@ConditionalOnProperty` и набор
   автоконфигураций в бинарнике уже не переключаются из `config.yml`, значения свойств
   читаются при запуске как обычно.
@@ -143,4 +158,5 @@ java --enable-native-access=ALL-UNNAMED -jar harness-bootstrap/build/libs/harnes
 | `nativeCompile` падает с нехваткой памяти | Закройте тяжёлые приложения: сборке нужно до 7 ГБ |
 | Ошибка NullAway при компиляции | Отметьте поле или параметр `@Nullable` (JSpecify) или уберите возможный `null` |
 | PMD: `CognitiveComplexity` / `CyclomaticComplexity` | Разбейте метод на части, порог не повышайте |
-| В бинарнике `ClassNotFoundException` или пустые поля после JSON | Класс не зарегистрирован в `NativeHintsConfig` |
+| В бинарнике `ClassNotFoundException` или пустые поля после JSON | Класс не зарегистрирован в `NativeHintsConfig` или в hints модуля провайдера |
+| `check -PincludeTags=live` падает на `jacocoTestCoverageVerification` | Live запускается через `test`: с фильтром тегов обычные тесты не идут, и пороги покрытия не выполняются |
