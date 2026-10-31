@@ -7,6 +7,7 @@ plugins {
 dependencies {
     implementation(project(":harness-infrastructure"))
     implementation(project(":harness-adapter-ollama"))
+    implementation(project(":harness-adapter-anthropic"))
     implementation(libs.spring.boot.starter)
     implementation(libs.spring.boot.starter.log4j2)
     // Constraint annotations of HarnessProperties records read while compiling BeanConfig.
@@ -66,6 +67,7 @@ val coveredProjects = listOf(
     project(":harness-application"),
     project(":harness-infrastructure"),
     project(":harness-adapter-ollama"),
+    project(":harness-adapter-anthropic"),
     project
 )
 

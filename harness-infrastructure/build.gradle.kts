@@ -11,7 +11,6 @@ dependencies {
     // RestClient of the http_fetch tool.
     implementation(libs.spring.boot.starter.restclient)
     implementation(libs.spring.ai.starter.mcp.client)
-    implementation(libs.anthropic.java)
     implementation(libs.picocli)
     implementation(libs.jline)
     implementation(libs.mapstruct)

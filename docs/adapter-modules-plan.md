@@ -70,10 +70,16 @@ harness-bootstrap ──► harness-infrastructure ──────► harness
    Модуль сразу включён в общий порог JaCoCo. Тестов по-прежнему 286 (application 66,
    infrastructure 151, adapter-ollama 56, bootstrap 13); native smoke (8) и live (8) зелёные;
    в runtime classpath инфраструктуры больше нет Spring AI Ollama и Netty DNS.
-3. **Создать каркас `harness-adapter-anthropic`.** Модуль с `package-info` и build-скриптом;
+3. ✅ **Создать каркас `harness-adapter-anthropic`.** Модуль с `package-info` и build-скриптом;
    зависимость `anthropic-java` переносится сюда из `harness-infrastructure`. Проверить через
    `dependencies`, что SDK (Jackson 2, Kotlin, OkHttp) не попадает в classpath
    инфраструктуры и Ollama-модуля.
+   *Итог:* модуль (`java-library`, `api(":harness-application")`, `anthropic-java`) подключён
+   к `harness-bootstrap` и к общему порогу JaCoCo. В runtime classpath инфраструктуры и
+   Ollama-модуля нет `com.anthropic`, `jackson-databind` 2, `kotlin-stdlib` и `okhttp`
+   (остаётся только `jackson-annotations` 2.21 — его использует и Jackson 3). Внешние
+   зависимости runtime classpath `harness-bootstrap` совпадают с прежними, поэтому native и
+   live не перезапускались; `clean check` зелёный (286 тестов).
 4. **Закрепить границы и проверить.** ArchUnit (`HexagonalArchitectureTest`): `application` не
    зависит от `..adapter..`; `infrastructure` не зависит от `..adapter..`; адаптеры не
    зависят от `..infrastructure..`, `..bootstrap..` и друг от друга (slices). Общий порог
