@@ -7,6 +7,7 @@ import org.springframework.web.client.RestClient;
 
 import dev.localllm.harness.adapter.ollama.config.OllamaProperties;
 import dev.localllm.harness.adapter.ollama.fixture.OllamaTestProperties;
+import dev.localllm.harness.application.model.LlmProvider;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
@@ -27,7 +28,7 @@ class OllamaContextBudgetAdapterIT {
         {"models":[{"name":"qwen3.5:27b","context_length":32768,"runner":"mlx"}]}""")));
 
     // Act
-    int contextLength = adapter(ollama.baseUrl()).contextLength("qwen3.5:27b");
+    int contextLength = adapter(ollama.baseUrl()).contextLength(LlmProvider.OLLAMA, "qwen3.5:27b");
 
     // Assert
     assertThat(contextLength).isEqualTo(32768);
@@ -39,7 +40,7 @@ class OllamaContextBudgetAdapterIT {
     ollama.stubFor(get("/api/ps").willReturn(okJson("{\"models\":[]}")));
 
     // Act
-    int contextLength = adapter(ollama.baseUrl()).contextLength("qwen3.5:27b");
+    int contextLength = adapter(ollama.baseUrl()).contextLength(LlmProvider.OLLAMA, "qwen3.5:27b");
 
     // Assert
     assertThat(contextLength).isEqualTo(OllamaTestProperties.NUM_CTX);
@@ -48,7 +49,7 @@ class OllamaContextBudgetAdapterIT {
   @Test
   void contextLength_WhenServerDown_ReturnsConfiguredWindow() {
     // Act
-    int contextLength = adapter("http://localhost:1").contextLength("qwen3.5:27b");
+    int contextLength = adapter("http://localhost:1").contextLength(LlmProvider.OLLAMA, "qwen3.5:27b");
 
     // Assert
     assertThat(contextLength).isEqualTo(OllamaTestProperties.NUM_CTX);

@@ -8,6 +8,7 @@ import java.time.Instant;
  *
  * @param sessionId identifier of the session
  * @param workingDirectory directory the session was started in
+ * @param provider provider of the session
  * @param model model of the first turn
  * @param title beginning of the first user message
  * @param createdAt time of the first turn
@@ -16,6 +17,7 @@ import java.time.Instant;
 public record SessionInfo(
     SessionId sessionId,
     Path workingDirectory,
+    LlmProvider provider,
     String model,
     String title,
     Instant createdAt,

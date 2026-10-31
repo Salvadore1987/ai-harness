@@ -1,15 +1,17 @@
 package dev.localllm.harness.application.fixture;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.ModelCapability;
 import dev.localllm.harness.application.model.ModelInfo;
 import dev.localllm.harness.application.port.out.ModelCatalogPort;
 
 /**
- * Fixed list of installed models.
+ * Fixed list of installed models of one provider; other providers have none.
  */
 public final class FakeModelCatalogPort implements ModelCatalogPort {
 
@@ -21,24 +23,34 @@ public final class FakeModelCatalogPort implements ModelCatalogPort {
   public static final ModelInfo CODELLAMA = new ModelInfo(
       "codellama:7b-instruct", "7B", "Q4_0", Set.of());
 
-  private final List<ModelInfo> models;
+  private final Map<LlmProvider, List<ModelInfo>> models;
 
   /**
-   * Creates a catalog with the given models.
+   * Creates a catalog with the given Ollama models.
    *
    * @param models installed models
    */
   public FakeModelCatalogPort(ModelInfo... models) {
-    this.models = List.of(models);
+    this(LlmProvider.OLLAMA, models);
+  }
+
+  /**
+   * Creates a catalog with the given models of one provider.
+   *
+   * @param provider provider offering the models
+   * @param models models of the provider
+   */
+  public FakeModelCatalogPort(LlmProvider provider, ModelInfo... models) {
+    this.models = Map.of(provider, List.of(models));
   }
 
   @Override
-  public List<ModelInfo> listModels() {
-    return models;
+  public List<ModelInfo> listModels(LlmProvider provider) {
+    return models.getOrDefault(provider, List.of());
   }
 
   @Override
-  public Optional<ModelInfo> findModel(String name) {
-    return models.stream().filter(model -> model.name().equals(name)).findFirst();
+  public Optional<ModelInfo> findModel(LlmProvider provider, String name) {
+    return listModels(provider).stream().filter(model -> model.name().equals(name)).findFirst();
   }
 }

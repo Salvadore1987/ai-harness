@@ -1,9 +1,10 @@
 package dev.localllm.harness.application.fixture;
 
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.port.out.ContextBudgetPort;
 
 /**
- * Context window of a fixed size for every model.
+ * Context window of a fixed size for every model of every provider.
  */
 public final class FixedContextBudgetPort implements ContextBudgetPort {
 
@@ -28,7 +29,7 @@ public final class FixedContextBudgetPort implements ContextBudgetPort {
   }
 
   @Override
-  public int contextLength(String model) {
+  public int contextLength(LlmProvider provider, String model) {
     return contextLength;
   }
 }

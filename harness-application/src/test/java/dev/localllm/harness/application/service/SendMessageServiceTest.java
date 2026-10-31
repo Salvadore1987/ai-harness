@@ -23,6 +23,7 @@ import dev.localllm.harness.application.model.ChatChunk;
 import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.ChatRequest;
 import dev.localllm.harness.application.model.ContextPolicy;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.SessionInfo;
@@ -31,6 +32,7 @@ import dev.localllm.harness.application.model.TurnStatus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 class SendMessageServiceTest {
 
@@ -163,6 +165,23 @@ class SendMessageServiceTest {
   }
 
   @Test
+  void execute_WithAnthropicSession_SendsRequestToAnthropic() {
+    // Arrange
+    chatModel.respondWith(new ChatChunk.Content("ok"));
+    SendMessageCommand command = new SendMessageCommand(
+        sessionId, CWD, LlmProvider.ANTHROPIC, "claude-opus-5-5", "Hi", true);
+
+    // Act
+    service.execute(command);
+
+    // Assert
+    assertThat(chatModel.requests()).extracting(ChatRequest::provider, ChatRequest::model)
+        .containsExactly(tuple(LlmProvider.ANTHROPIC, "claude-opus-5-5"));
+    assertThat(catalog.find(sessionId)).map(SessionInfo::provider)
+        .contains(LlmProvider.ANTHROPIC);
+  }
+
+  @Test
   void execute_OnFirstTurn_RegistersSessionWithSingleLineTitle() {
     // Arrange
     chatModel.respondWith(new ChatChunk.Content("ok"));
@@ -172,7 +191,7 @@ class SendMessageServiceTest {
 
     // Assert
     assertThat(catalog.find(sessionId)).contains(
-        new SessionInfo(sessionId, CWD, MODEL, "Explain the build", NOW, 0));
+        new SessionInfo(sessionId, CWD, LlmProvider.OLLAMA, MODEL, "Explain the build", NOW, 0));
   }
 
   @Test
@@ -232,6 +251,6 @@ class SendMessageServiceTest {
   }
 
   private SendMessageCommand command(String text, boolean thinking) {
-    return new SendMessageCommand(sessionId, CWD, MODEL, text, thinking);
+    return new SendMessageCommand(sessionId, CWD, LlmProvider.OLLAMA, MODEL, text, thinking);
   }
 }

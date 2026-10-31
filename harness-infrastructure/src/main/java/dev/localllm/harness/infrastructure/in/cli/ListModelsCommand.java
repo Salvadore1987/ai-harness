@@ -7,6 +7,7 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.infrastructure.config.HarnessProperties;
 
 /**
@@ -39,7 +40,7 @@ public class ListModelsCommand implements Callable<Integer> {
 
   @Override
   public Integer call() {
-    printer.printInstalled(namePrefix, properties.model());
+    printer.printInstalled(LlmProvider.OLLAMA, namePrefix, properties.model());
     return CommandLine.ExitCode.OK;
   }
 }

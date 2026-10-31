@@ -21,6 +21,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import tools.jackson.databind.json.JsonMapper;
 
 import dev.localllm.harness.application.model.ChatMessage;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.SessionInfo;
@@ -103,7 +104,8 @@ class JsonlSessionStorageTest {
 
     // Act & Assert
     assertThat(repository.readSession(id())).contains(
-        new SessionInfo(sessionId, Path.of("/work/project"), "qwen3.5:27b", "Explain", NOW, 2));
+        new SessionInfo(sessionId, Path.of("/work/project"), LlmProvider.OLLAMA, "qwen3.5:27b",
+            "Explain", NOW, 2));
   }
 
   @Test
@@ -206,10 +208,10 @@ class JsonlSessionStorageTest {
     JsonlSessionCatalogAdapter catalog = new JsonlSessionCatalogAdapter(repository);
     SessionId newer = SessionId.newId();
     catalog.register(info());
-    catalog.register(new SessionInfo(newer, Path.of("/work/project"), "qwen3.5:27b", "Newer",
-        NOW.plusSeconds(60), 0));
-    catalog.register(new SessionInfo(SessionId.newId(), Path.of("/work/other"), "qwen3.5:27b",
-        "Elsewhere", NOW, 0));
+    catalog.register(new SessionInfo(newer, Path.of("/work/project"), LlmProvider.OLLAMA,
+        "qwen3.5:27b", "Newer", NOW.plusSeconds(60), 0));
+    catalog.register(new SessionInfo(SessionId.newId(), Path.of("/work/other"), LlmProvider.OLLAMA,
+        "qwen3.5:27b", "Elsewhere", NOW, 0));
 
     // Act
     List<SessionInfo> sessions = catalog.list(Path.of("/work/project"));
@@ -248,7 +250,8 @@ class JsonlSessionStorageTest {
   }
 
   private SessionInfo info() {
-    return new SessionInfo(sessionId, Path.of("/work/project"), "qwen3.5:27b", "Explain", NOW, 0);
+    return new SessionInfo(
+        sessionId, Path.of("/work/project"), LlmProvider.OLLAMA, "qwen3.5:27b", "Explain", NOW, 0);
   }
 
   private String id() {

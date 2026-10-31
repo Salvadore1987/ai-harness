@@ -11,6 +11,7 @@ import dev.localllm.harness.application.model.ChatChunk;
 import dev.localllm.harness.application.model.ChatCompletion;
 import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.ChatRequest;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.ModelCapability;
 import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.TurnStatus;
@@ -33,7 +34,7 @@ class OllamaLiveIT {
     OllamaChatAdapter adapter = OllamaTestSupport.chatAdapter(BASE_URL);
     List<Long> arrivals = new ArrayList<>();
     long startedAt = System.nanoTime();
-    ChatRequest request = new ChatRequest(OllamaTestSupport.MODEL,
+    ChatRequest request = new ChatRequest(LlmProvider.OLLAMA, OllamaTestSupport.MODEL,
         List.of(new ChatMessage(Role.USER, "Count from 1 to 30, one number per line.")), false);
 
     // Act
@@ -53,7 +54,7 @@ class OllamaLiveIT {
     // Arrange
     OllamaChatAdapter adapter = OllamaTestSupport.chatAdapter(BASE_URL);
     List<ChatChunk> chunks = new ArrayList<>();
-    ChatRequest request = new ChatRequest(OllamaTestSupport.MODEL,
+    ChatRequest request = new ChatRequest(LlmProvider.OLLAMA, OllamaTestSupport.MODEL,
         List.of(new ChatMessage(Role.USER, "Is 17 prime? Answer yes or no.")), true);
 
     // Act
@@ -70,8 +71,8 @@ class OllamaLiveIT {
     OllamaModelCatalogAdapter adapter = OllamaTestSupport.catalogAdapter(BASE_URL);
 
     // Act & Assert
-    assertThat(adapter.findModel(OllamaTestSupport.MODEL)).hasValueSatisfying(model ->
-        assertThat(model.capabilities())
+    assertThat(adapter.findModel(LlmProvider.OLLAMA, OllamaTestSupport.MODEL))
+        .hasValueSatisfying(model -> assertThat(model.capabilities())
             .contains(ModelCapability.THINKING, ModelCapability.TOOLS));
   }
 }

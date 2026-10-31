@@ -25,6 +25,7 @@ import dev.localllm.harness.application.model.ChatChunk;
 import dev.localllm.harness.application.model.ChatCompletion;
 import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.ChatRequest;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.TokenUsage;
 import dev.localllm.harness.application.model.ToolCall;
@@ -405,15 +406,16 @@ class OllamaChatAdapterIT {
     List<ChatMessage> messages = new ArrayList<>();
     messages.add(new ChatMessage(Role.USER, "what does add do?"));
     messages.addAll(history);
-    return new ChatRequest(OllamaTestSupport.MODEL, messages, true, List.of(new ToolSpec(
-        "read_file", "Read a file",
-        "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"}},"
-            + "\"required\":[\"path\"]}",
-        ToolSource.BUILTIN, null)));
+    return new ChatRequest(LlmProvider.OLLAMA, OllamaTestSupport.MODEL, messages, true,
+        List.of(new ToolSpec(
+            "read_file", "Read a file",
+            "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"}},"
+                + "\"required\":[\"path\"]}",
+            ToolSource.BUILTIN, null)));
   }
 
   private static ChatRequest request(boolean thinking) {
-    return new ChatRequest(
-        OllamaTestSupport.MODEL, List.of(new ChatMessage(Role.USER, "hi")), thinking);
+    return new ChatRequest(LlmProvider.OLLAMA, OllamaTestSupport.MODEL,
+        List.of(new ChatMessage(Role.USER, "hi")), thinking);
   }
 }

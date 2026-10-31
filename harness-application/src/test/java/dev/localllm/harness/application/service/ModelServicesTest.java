@@ -18,6 +18,7 @@ import dev.localllm.harness.application.exception.ThinkingNotSupportedException;
 import dev.localllm.harness.application.fixture.FakeModelCatalogPort;
 import dev.localllm.harness.application.fixture.FakeRunningModelsPort;
 import dev.localllm.harness.application.mapper.TurnApplicationMapper;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.ModelInfo;
 import dev.localllm.harness.application.model.RunningModelInfo;
 
@@ -25,6 +26,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ModelServicesTest {
+
+  private static final LlmProvider OLLAMA = LlmProvider.OLLAMA;
 
   private final TurnApplicationMapper mapper = Mappers.getMapper(TurnApplicationMapper.class);
   private final FakeModelCatalogPort catalog = new FakeModelCatalogPort(
@@ -36,7 +39,7 @@ class ModelServicesTest {
     SwitchModelService service = new SwitchModelService(catalog, mapper);
 
     // Act
-    ModelSummaryResult result = service.execute(new SwitchModelCommand("qwen3.5:27b"));
+    ModelSummaryResult result = service.execute(new SwitchModelCommand(OLLAMA, "qwen3.5:27b"));
 
     // Assert
     assertThat(result).isEqualTo(
@@ -49,7 +52,7 @@ class ModelServicesTest {
     SwitchModelService service = new SwitchModelService(catalog, mapper);
 
     // Act & Assert
-    assertThatThrownBy(() -> service.execute(new SwitchModelCommand("llama9:1t")))
+    assertThatThrownBy(() -> service.execute(new SwitchModelCommand(OLLAMA, "llama9:1t")))
         .isInstanceOf(ModelNotFoundException.class)
         .hasMessageContaining("llama9:1t");
   }
@@ -60,7 +63,8 @@ class ModelServicesTest {
     ToggleThinkingService service = new ToggleThinkingService(catalog, mapper);
 
     // Act
-    ThinkingToggleResult result = service.execute(new ToggleThinkingCommand("qwen3.5:27b", true));
+    ThinkingToggleResult result =
+        service.execute(new ToggleThinkingCommand(OLLAMA, "qwen3.5:27b", true));
 
     // Assert
     assertThat(result.enabled()).isTrue();
@@ -70,7 +74,8 @@ class ModelServicesTest {
   void toggleThinking_EnableOnModelWithoutThinking_ThrowsNotSupported() {
     // Arrange
     ToggleThinkingService service = new ToggleThinkingService(catalog, mapper);
-    ToggleThinkingCommand command = new ToggleThinkingCommand("codellama:7b-instruct", true);
+    ToggleThinkingCommand command =
+        new ToggleThinkingCommand(OLLAMA, "codellama:7b-instruct", true);
 
     // Act & Assert
     assertThatThrownBy(() -> service.execute(command))
@@ -83,7 +88,7 @@ class ModelServicesTest {
     ToggleThinkingService service = new ToggleThinkingService(catalog, mapper);
 
     // Act & Assert
-    assertThatThrownBy(() -> service.execute(new ToggleThinkingCommand("missing", true)))
+    assertThatThrownBy(() -> service.execute(new ToggleThinkingCommand(OLLAMA, "missing", true)))
         .isInstanceOf(ModelNotFoundException.class);
   }
 
@@ -93,7 +98,8 @@ class ModelServicesTest {
     ToggleThinkingService service = new ToggleThinkingService(catalog, mapper);
 
     // Act
-    ThinkingToggleResult result = service.execute(new ToggleThinkingCommand("missing", false));
+    ThinkingToggleResult result =
+        service.execute(new ToggleThinkingCommand(OLLAMA, "missing", false));
 
     // Assert
     assertThat(result.enabled()).isFalse();
@@ -110,11 +116,35 @@ class ModelServicesTest {
         mapper);
 
     // Act
-    List<ModelSummaryResult> result = service.execute(new ListModelsCriteria("qwen"));
+    List<ModelSummaryResult> result = service.execute(new ListModelsCriteria(OLLAMA, "qwen"));
 
     // Assert
     assertThat(result).extracting(ModelSummaryResult::name)
         .containsExactly("qwen2.5-coder:7b", "qwen3.5:27b");
+  }
+
+  @Test
+  void listModels_ForProviderWithoutModels_ReturnsEmpty() {
+    // Arrange
+    ListModelsQueryService service = new ListModelsQueryService(catalog, mapper);
+
+    // Act
+    List<ModelSummaryResult> result =
+        service.execute(new ListModelsCriteria(LlmProvider.ANTHROPIC, ""));
+
+    // Assert
+    assertThat(result).isEmpty();
+  }
+
+  @Test
+  void switchModel_ToModelOfAnotherProvider_ThrowsModelNotFound() {
+    // Arrange
+    SwitchModelService service = new SwitchModelService(catalog, mapper);
+    SwitchModelCommand command = new SwitchModelCommand(LlmProvider.ANTHROPIC, "qwen3.5:27b");
+
+    // Act & Assert
+    assertThatThrownBy(() -> service.execute(command))
+        .isInstanceOf(ModelNotFoundException.class);
   }
 
   @Test

@@ -31,7 +31,7 @@ public class ListModelsQueryService implements ListModelsQuery {
 
   @Override
   public List<ModelSummaryResult> execute(ListModelsCriteria criteria) {
-    return modelCatalogPort.listModels().stream()
+    return modelCatalogPort.listModels(criteria.provider()).stream()
         .filter(model -> model.name().startsWith(criteria.namePrefix()))
         .sorted(Comparator.comparing(ModelInfo::name))
         .map(mapper::toModelSummary)

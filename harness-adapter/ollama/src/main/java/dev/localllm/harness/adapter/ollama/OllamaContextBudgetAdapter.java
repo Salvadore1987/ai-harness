@@ -9,6 +9,7 @@ import org.springframework.web.client.RestClientException;
 
 import dev.localllm.harness.adapter.ollama.config.OllamaProperties;
 import dev.localllm.harness.adapter.ollama.dto.OllamaRunningModels;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.port.out.ContextBudgetPort;
 
 /**
@@ -17,6 +18,8 @@ import dev.localllm.harness.application.port.out.ContextBudgetPort;
  * <p>The window is fixed when Ollama loads a model; a different {@code num_ctx} in later requests
  * does not reload it (observed on the MLX runner). The configured {@code harness.context.num-ctx}
  * is therefore only a fallback for a model that is not loaded or a server that cannot be asked.
+ * The {@code provider} argument is not checked: only requests for {@link LlmProvider#OLLAMA}
+ * reach this adapter.
  */
 @Component
 public class OllamaContextBudgetAdapter implements ContextBudgetPort {
@@ -38,7 +41,7 @@ public class OllamaContextBudgetAdapter implements ContextBudgetPort {
   }
 
   @Override
-  public int contextLength(String model) {
+  public int contextLength(LlmProvider provider, String model) {
     try {
       return psClient.runningModels().stream()
           .filter(loaded -> model.equals(loaded.name()))

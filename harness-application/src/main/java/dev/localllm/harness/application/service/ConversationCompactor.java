@@ -13,6 +13,7 @@ import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.ChatRequest;
 import dev.localllm.harness.application.model.CompactionOutcome;
 import dev.localllm.harness.application.model.ContextUsage;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.ToolCall;
@@ -24,11 +25,11 @@ import dev.localllm.harness.application.port.out.ConversationPort;
  * Replaces the older part of a history with a summary written by the model.
  *
  * <p>The most recent messages stay verbatim as long as they fit into
- * {@link ContextMeter#tailBudget(String)}; the kept tail never starts with a tool result, so a
- * result is never separated from the call it answers. Files attached as {@code <file>} blocks
- * are replaced by their {@code @path} in the transcript given to the summarizer. If the model
- * cannot write the summary, the older messages are dropped without one, so the next request
- * still fits into the context window.
+ * {@link ContextMeter#tailBudget(LlmProvider, String)}; the kept tail never starts with a tool
+ * result, so a result is never separated from the call it answers. Files attached as
+ * {@code <file>} blocks are replaced by their {@code @path} in the transcript given to the
+ * summarizer. If the model cannot write the summary, the older messages are dropped without
+ * one, so the next request still fits into the context window.
  */
 public class ConversationCompactor {
 
@@ -66,18 +67,19 @@ public class ConversationCompactor {
    * Compacts the history of a session.
    *
    * @param sessionId session to compact
+   * @param provider provider of the model
    * @param model model writing the summary
    * @return outcome of the compaction
    */
-  public CompactionOutcome compact(SessionId sessionId, String model) {
+  public CompactionOutcome compact(SessionId sessionId, LlmProvider provider, String model) {
     List<ChatMessage> history = conversationPort.history(sessionId);
     int tokensBefore = contextMeter.estimateTokens(history);
-    int keep = tailSize(history, contextMeter.tailBudget(model));
+    int keep = tailSize(history, contextMeter.tailBudget(provider, model));
     List<ChatMessage> older = history.subList(0, history.size() - keep);
     if (older.stream().allMatch(message -> message.role() == Role.SYSTEM)) {
       return new CompactionOutcome(false, false, tokensBefore, tokensBefore);
     }
-    String summary = summarize(model, older);
+    String summary = summarize(provider, model, older);
     conversationPort.compact(sessionId, summary, keep);
     int tokensAfter = contextMeter.estimateTokens(conversationPort.history(sessionId));
     return new CompactionOutcome(true, !summary.isEmpty(), tokensBefore, tokensAfter);
@@ -87,15 +89,18 @@ public class ConversationCompactor {
    * Compacts the history if it has reached the compaction threshold.
    *
    * @param sessionId session to check
+   * @param provider provider of the model
    * @param model model of the session
    * @return outcome of the compaction, or empty if none was needed
    */
-  public Optional<CompactionOutcome> compactIfNeeded(SessionId sessionId, String model) {
-    ContextUsage usage = contextMeter.measure(conversationPort.history(sessionId), model);
+  public Optional<CompactionOutcome> compactIfNeeded(
+      SessionId sessionId, LlmProvider provider, String model) {
+    ContextUsage usage =
+        contextMeter.measure(conversationPort.history(sessionId), provider, model);
     if (!contextMeter.isOverThreshold(usage)) {
       return Optional.empty();
     }
-    return Optional.of(compact(sessionId, model));
+    return Optional.of(compact(sessionId, provider, model));
   }
 
   private int tailSize(List<ChatMessage> history, int budget) {
@@ -115,8 +120,8 @@ public class ConversationCompactor {
     return history.size() - start;
   }
 
-  private String summarize(String model, List<ChatMessage> older) {
-    ChatRequest request = new ChatRequest(model, List.of(
+  private String summarize(LlmProvider provider, String model, List<ChatMessage> older) {
+    ChatRequest request = new ChatRequest(provider, model, List.of(
         new ChatMessage(Role.SYSTEM, SUMMARY_INSTRUCTIONS),
         new ChatMessage(Role.USER, transcript(older))), false);
     try {

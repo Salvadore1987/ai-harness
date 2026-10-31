@@ -53,7 +53,7 @@ public class ModelSlashCommands {
    */
   public void model(ReplSession session, String argument) {
     if (argument.isEmpty()) {
-      modelListPrinter.printInstalled("", session.getModel());
+      modelListPrinter.printInstalled(session.getProvider(), "", session.getModel());
     } else {
       switchModel(session, argument);
     }
@@ -66,7 +66,7 @@ public class ModelSlashCommands {
    * @param argument name prefix, empty for all models
    */
   public void list(ReplSession session, String argument) {
-    modelListPrinter.printInstalled(argument, session.getModel());
+    modelListPrinter.printInstalled(session.getProvider(), argument, session.getModel());
   }
 
   /**
@@ -101,7 +101,8 @@ public class ModelSlashCommands {
   }
 
   private void switchModel(ReplSession session, String model) {
-    ModelSummaryResult selected = switchModelUseCase.execute(mapper.toSwitchModelCommand(model));
+    ModelSummaryResult selected =
+        switchModelUseCase.execute(mapper.toSwitchModelCommand(session, model));
     boolean thinkingDisabled = session.applyModel(selected);
     StringBuilder notice = new StringBuilder();
     if (thinkingDisabled) {

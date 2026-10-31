@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import dev.localllm.harness.adapter.ollama.config.OllamaProperties.ToolCallModeType;
 import dev.localllm.harness.adapter.ollama.mapper.ModelInfoOllamaMapper;
 import dev.localllm.harness.adapter.ollama.toolcall.ToolCallModeResolver;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.ModelCapability;
 import dev.localllm.harness.application.model.ModelInfo;
 import dev.localllm.harness.application.port.out.ModelCatalogPort;
@@ -21,7 +22,8 @@ import dev.localllm.harness.application.port.out.ModelCatalogPort;
  *
  * <p>A model configured for the {@code text-json} tool call mode gets the
  * {@link ModelCapability#TOOLS} capability even if it has no native tool calling: the harness
- * describes the tools in the prompt.
+ * describes the tools in the prompt. The {@code provider} argument is not checked: only requests
+ * for {@link LlmProvider#OLLAMA} reach this adapter.
  */
 @Component
 public class OllamaModelCatalogAdapter implements ModelCatalogPort {
@@ -51,7 +53,7 @@ public class OllamaModelCatalogAdapter implements ModelCatalogPort {
   }
 
   @Override
-  public List<ModelInfo> listModels() {
+  public List<ModelInfo> listModels(LlmProvider provider) {
     List<OllamaApi.Model> models;
     try {
       models = Objects.requireNonNullElse(ollamaApi.listModels().models(), List.of());
@@ -60,13 +62,17 @@ public class OllamaModelCatalogAdapter implements ModelCatalogPort {
     }
     return models.stream()
         .map(OllamaApi.Model::name)
-        .map(this::findModel)
+        .map(this::showModel)
         .flatMap(Optional::stream)
         .toList();
   }
 
   @Override
-  public Optional<ModelInfo> findModel(String name) {
+  public Optional<ModelInfo> findModel(LlmProvider provider, String name) {
+    return showModel(name);
+  }
+
+  private Optional<ModelInfo> showModel(String name) {
     try {
       OllamaApi.ShowModelResponse response =
           ollamaApi.showModel(new OllamaApi.ShowModelRequest(name));

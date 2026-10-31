@@ -9,6 +9,7 @@ import dev.localllm.harness.application.exception.LlmUnavailableException;
 import dev.localllm.harness.application.model.ChatChunk;
 import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.ChatRequest;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.SessionInfo;
@@ -149,7 +150,7 @@ class HarnessCommandTest {
   void execute_PrintModeWithResume_ContinuesLatestSessionAndItsModel() {
     // Arrange
     SessionId stored = SessionId.newId();
-    context.catalog.register(new SessionInfo(stored, CliTestContext.CWD,
+    context.catalog.register(new SessionInfo(stored, CliTestContext.CWD, LlmProvider.OLLAMA,
         "codellama:7b-instruct", "earlier", Instant.parse("2026-10-29T10:00:00Z"), 2));
     context.conversation.append(stored, new ChatMessage(Role.USER, "earlier question"));
     context.conversation.append(stored, new ChatMessage(Role.ASSISTANT, "earlier answer"));

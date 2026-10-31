@@ -160,7 +160,7 @@ public class HarnessCommand implements Callable<Integer> {
   private boolean prepareModel(ReplSession session) {
     try {
       ModelSummaryResult selected =
-          switchModelUseCase.execute(mapper.toSwitchModelCommand(session.getModel()));
+          switchModelUseCase.execute(mapper.toSwitchModelCommand(session, session.getModel()));
       session.applyModel(selected);
       return true;
     } catch (HarnessException e) {

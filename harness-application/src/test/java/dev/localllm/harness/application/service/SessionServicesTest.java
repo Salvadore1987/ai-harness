@@ -19,6 +19,7 @@ import dev.localllm.harness.application.exception.SessionNotFoundException;
 import dev.localllm.harness.application.fixture.FakeChatModelPort;
 import dev.localllm.harness.application.fixture.FakeSessionCatalogPort;
 import dev.localllm.harness.application.mapper.TurnApplicationMapper;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.SessionInfo;
 
@@ -171,8 +172,8 @@ class SessionServicesTest {
   }
 
   private SessionInfo register(Path cwd, String title, String createdAt) {
-    SessionInfo info = new SessionInfo(SessionId.newId(), cwd, "qwen3.5:27b", title,
-        Instant.parse(createdAt), 2);
+    SessionInfo info = new SessionInfo(SessionId.newId(), cwd, LlmProvider.OLLAMA, "qwen3.5:27b",
+        title, Instant.parse(createdAt), 2);
     catalog.register(info);
     return info;
   }

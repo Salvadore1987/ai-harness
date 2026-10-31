@@ -6,10 +6,11 @@ import org.jspecify.annotations.Nullable;
 
 import dev.localllm.harness.application.dto.result.ModelSummaryResult;
 import dev.localllm.harness.application.dto.result.SessionSummaryResult;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.SessionId;
 
 /**
- * Mutable state of one CLI run: current session, model and display flags.
+ * Mutable state of one CLI run: current session, provider, model and display flags.
  */
 public final class ReplSession {
 
@@ -17,6 +18,7 @@ public final class ReplSession {
   private final boolean verbose;
   private @Nullable SessionId sessionId;
   private @Nullable String title;
+  private LlmProvider provider = LlmProvider.OLLAMA;
   private String model;
   private boolean thinkingEnabled;
   private boolean thinkingSupported = true;
@@ -75,6 +77,15 @@ public final class ReplSession {
   public void startNew(SessionId newSessionId) {
     this.sessionId = newSessionId;
     this.title = null;
+  }
+
+  /**
+   * Provider of the current session.
+   *
+   * @return provider
+   */
+  public LlmProvider getProvider() {
+    return provider;
   }
 
   /**

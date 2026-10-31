@@ -8,6 +8,7 @@ import dev.localllm.harness.application.dto.result.SessionSummaryResult;
 import dev.localllm.harness.application.exception.LlmUnavailableException;
 import dev.localllm.harness.application.model.ChatChunk;
 import dev.localllm.harness.application.model.ChatMessage;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.SessionInfo;
@@ -219,7 +220,7 @@ class SlashCommandDispatcherTest {
     SessionInfo stored = register("Earlier work");
     SessionInfo current = register("Current work");
     session.resume(new SessionSummaryResult(current.sessionId(), current.title(),
-        current.model(), current.createdAt(), current.messageCount()));
+        current.provider(), current.model(), current.createdAt(), current.messageCount()));
 
     // Act
     dispatcher.dispatch("/purge", session);
@@ -375,8 +376,8 @@ class SlashCommandDispatcherTest {
   }
 
   private SessionInfo register(String title) {
-    SessionInfo info = new SessionInfo(SessionId.newId(), CliTestContext.CWD, "qwen3.5:27b",
-        title, Instant.parse("2026-10-29T10:00:00Z"), 4);
+    SessionInfo info = new SessionInfo(SessionId.newId(), CliTestContext.CWD, LlmProvider.OLLAMA,
+        "qwen3.5:27b", title, Instant.parse("2026-10-29T10:00:00Z"), 4);
     context.catalog.register(info);
     return info;
   }

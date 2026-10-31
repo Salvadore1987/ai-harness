@@ -44,13 +44,15 @@ public interface JsonlLineMapper {
   JsonlLine toMetaLine(SessionInfo info);
 
   /**
-   * Restores session metadata from its meta line.
+   * Restores session metadata from its meta line. The meta line does not store the provider
+   * yet, so every stored session is an Ollama session.
    *
    * @param line meta line
    * @param messageCount number of message lines in the file
    * @return session metadata
    */
   @Mapping(target = "workingDirectory", source = "line.cwd")
+  @Mapping(target = "provider", constant = "OLLAMA")
   @Mapping(target = "messageCount", source = "messageCount")
   SessionInfo toSessionInfo(JsonlLine line, int messageCount);
 

@@ -12,6 +12,7 @@ import dev.localllm.harness.application.port.in.CancelTurnUseCase;
 import dev.localllm.harness.application.port.in.CompactSessionUseCase;
 import dev.localllm.harness.application.port.in.GetContextUsageQuery;
 import dev.localllm.harness.application.port.in.ListModelsQuery;
+import dev.localllm.harness.application.port.in.ListProvidersQuery;
 import dev.localllm.harness.application.port.in.ListRunningModelsQuery;
 import dev.localllm.harness.application.port.in.ListSessionsQuery;
 import dev.localllm.harness.application.port.in.PurgeSessionsUseCase;
@@ -22,12 +23,14 @@ import dev.localllm.harness.application.port.in.SaveAnswerUseCase;
 import dev.localllm.harness.application.port.in.SendMessageUseCase;
 import dev.localllm.harness.application.port.in.StartSessionUseCase;
 import dev.localllm.harness.application.port.in.SwitchModelUseCase;
+import dev.localllm.harness.application.port.in.SwitchProviderUseCase;
 import dev.localllm.harness.application.port.in.ToggleThinkingUseCase;
 import dev.localllm.harness.application.port.out.AnswerFilePort;
 import dev.localllm.harness.application.port.out.ChatModelPort;
 import dev.localllm.harness.application.port.out.ContextBudgetPort;
 import dev.localllm.harness.application.port.out.ConversationPort;
 import dev.localllm.harness.application.port.out.ModelCatalogPort;
+import dev.localllm.harness.application.port.out.ProviderCatalogPort;
 import dev.localllm.harness.application.port.out.RunningModelsPort;
 import dev.localllm.harness.application.port.out.SessionCatalogPort;
 import dev.localllm.harness.application.port.out.ToolExecutorPort;
@@ -39,6 +42,7 @@ import dev.localllm.harness.application.service.ContextMeter;
 import dev.localllm.harness.application.service.ConversationCompactor;
 import dev.localllm.harness.application.service.GetContextUsageQueryService;
 import dev.localllm.harness.application.service.ListModelsQueryService;
+import dev.localllm.harness.application.service.ListProvidersQueryService;
 import dev.localllm.harness.application.service.ListRunningModelsQueryService;
 import dev.localllm.harness.application.service.ListSessionsQueryService;
 import dev.localllm.harness.application.service.PurgeSessionsService;
@@ -49,6 +53,7 @@ import dev.localllm.harness.application.service.SendMessageService;
 import dev.localllm.harness.application.service.SessionRegistrar;
 import dev.localllm.harness.application.service.StartSessionService;
 import dev.localllm.harness.application.service.SwitchModelService;
+import dev.localllm.harness.application.service.SwitchProviderService;
 import dev.localllm.harness.application.service.ToggleThinkingService;
 import dev.localllm.harness.application.service.TurnCancellation;
 import dev.localllm.harness.infrastructure.config.HarnessProperties;
@@ -210,6 +215,32 @@ public class BeanConfig {
   public SwitchModelUseCase switchModelUseCase(
       ModelCatalogPort modelCatalogPort, TurnApplicationMapper mapper) {
     return new SwitchModelService(modelCatalogPort, mapper);
+  }
+
+  /**
+   * Provider switch use case.
+   *
+   * @param providerCatalogPort providers and their availability
+   * @param mapper result mapper
+   * @return the use case
+   */
+  @Bean
+  public SwitchProviderUseCase switchProviderUseCase(
+      ProviderCatalogPort providerCatalogPort, TurnApplicationMapper mapper) {
+    return new SwitchProviderService(providerCatalogPort, mapper);
+  }
+
+  /**
+   * Providers query.
+   *
+   * @param providerCatalogPort providers and their availability
+   * @param mapper result mapper
+   * @return the query
+   */
+  @Bean
+  public ListProvidersQuery listProvidersQuery(
+      ProviderCatalogPort providerCatalogPort, TurnApplicationMapper mapper) {
+    return new ListProvidersQueryService(providerCatalogPort, mapper);
   }
 
   /**

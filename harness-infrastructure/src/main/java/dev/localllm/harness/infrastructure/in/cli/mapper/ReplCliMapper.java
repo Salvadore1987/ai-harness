@@ -18,6 +18,7 @@ import dev.localllm.harness.application.dto.query.ListModelsCriteria;
 import dev.localllm.harness.application.dto.query.ListRunningModelsCriteria;
 import dev.localllm.harness.application.dto.query.ListSessionsCriteria;
 import dev.localllm.harness.application.dto.query.ListToolsCriteria;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.infrastructure.in.cli.ReplSession;
 
 /**
@@ -35,6 +36,7 @@ public interface ReplCliMapper {
    */
   @Mapping(target = "sessionId", source = "session.sessionId")
   @Mapping(target = "workingDirectory", source = "session.workingDirectory")
+  @Mapping(target = "provider", source = "session.provider")
   @Mapping(target = "model", source = "session.model")
   @Mapping(target = "thinkingEnabled", source = "session.thinkingEnabled")
   @Mapping(target = "text", source = "text")
@@ -49,6 +51,7 @@ public interface ReplCliMapper {
    */
   @Mapping(target = "sessionId", source = "session.sessionId")
   @Mapping(target = "workingDirectory", source = "session.workingDirectory")
+  @Mapping(target = "provider", source = "session.provider")
   @Mapping(target = "model", source = "session.model")
   @Mapping(target = "thinkingEnabled", source = "session.thinkingEnabled")
   @Mapping(target = "text", source = "text")
@@ -84,7 +87,7 @@ public interface ReplCliMapper {
   /**
    * Builds the command that compacts the current session.
    *
-   * @param session CLI state with session and model
+   * @param session CLI state with session, provider and model
    * @return compact command
    */
   CompactSessionCommand toCompactSessionCommand(ReplSession session);
@@ -103,21 +106,24 @@ public interface ReplCliMapper {
   SaveAnswerCommand toSaveAnswerCommand(ReplSession session, String path);
 
   /**
-   * Builds the command that switches the model.
+   * Builds the command that switches the model within the provider of the session.
    *
+   * @param session CLI state with the current provider
    * @param model requested model tag
    * @return switch command
    */
+  @Mapping(target = "provider", source = "session.provider")
   @Mapping(target = "model", source = "model")
-  SwitchModelCommand toSwitchModelCommand(String model);
+  SwitchModelCommand toSwitchModelCommand(ReplSession session, String model);
 
   /**
    * Builds the command that toggles thinking for the current model.
    *
-   * @param session CLI state with the current model
+   * @param session CLI state with the current provider and model
    * @param enabled requested thinking state
    * @return toggle command
    */
+  @Mapping(target = "provider", source = "session.provider")
   @Mapping(target = "model", source = "session.model")
   @Mapping(target = "enabled", source = "enabled")
   ToggleThinkingCommand toToggleThinkingCommand(ReplSession session, boolean enabled);
@@ -125,11 +131,13 @@ public interface ReplCliMapper {
   /**
    * Builds the model list criteria.
    *
+   * @param provider provider whose models are listed
    * @param namePrefix name prefix, empty for all models
    * @return list criteria
    */
+  @Mapping(target = "provider", source = "provider")
   @Mapping(target = "namePrefix", source = "namePrefix")
-  ListModelsCriteria toListModelsCriteria(String namePrefix);
+  ListModelsCriteria toListModelsCriteria(LlmProvider provider, String namePrefix);
 
   /**
    * Builds the loaded model list criteria.

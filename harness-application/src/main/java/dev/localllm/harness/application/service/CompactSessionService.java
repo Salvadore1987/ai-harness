@@ -26,6 +26,7 @@ public class CompactSessionService implements CompactSessionUseCase {
 
   @Override
   public CompactionResult execute(CompactSessionCommand command) {
-    return mapper.toCompactionResult(compactor.compact(command.sessionId(), command.model()));
+    return mapper.toCompactionResult(
+        compactor.compact(command.sessionId(), command.provider(), command.model()));
   }
 }

@@ -5,6 +5,7 @@ import java.util.List;
 import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.ContextPolicy;
 import dev.localllm.harness.application.model.ContextUsage;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.ToolCall;
 import dev.localllm.harness.application.port.out.ContextBudgetPort;
 
@@ -59,23 +60,25 @@ public class ContextMeter {
   /**
    * Tokens the most recent messages may take and still be kept verbatim by a compaction.
    *
+   * @param provider provider of the model
    * @param model model tag
    * @return tail budget in tokens
    */
-  public int tailBudget(String model) {
-    return (int) (contextBudgetPort.contextLength(model) * policy.keepTailShare());
+  public int tailBudget(LlmProvider provider, String model) {
+    return (int) (contextBudgetPort.contextLength(provider, model) * policy.keepTailShare());
   }
 
   /**
    * Measures a history against the context window of a model.
    *
    * @param messages history sent with the next request
+   * @param provider provider of the model
    * @param model model tag
    * @return estimated usage
    */
-  public ContextUsage measure(List<ChatMessage> messages, String model) {
+  public ContextUsage measure(List<ChatMessage> messages, LlmProvider provider, String model) {
     int used = estimateTokens(messages);
-    int budget = contextBudgetPort.contextLength(model);
+    int budget = contextBudgetPort.contextLength(provider, model);
     int percent = budget <= 0 ? 0 : (int) ((long) used * PERCENT / budget);
     return new ContextUsage(used, budget, percent);
   }

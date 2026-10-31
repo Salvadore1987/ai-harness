@@ -9,6 +9,8 @@ import dev.localllm.harness.application.dto.command.ToggleThinkingCommand;
 import dev.localllm.harness.application.dto.result.CompactionResult;
 import dev.localllm.harness.application.dto.result.ContextUsageResult;
 import dev.localllm.harness.application.dto.result.ModelSummaryResult;
+import dev.localllm.harness.application.dto.result.ProviderResult;
+import dev.localllm.harness.application.dto.result.ProviderSummaryResult;
 import dev.localllm.harness.application.dto.result.PurgedSessionsResult;
 import dev.localllm.harness.application.dto.result.RunningModelResult;
 import dev.localllm.harness.application.dto.result.SavedAnswerResult;
@@ -20,8 +22,10 @@ import dev.localllm.harness.application.dto.result.TurnResult;
 import dev.localllm.harness.application.model.ChatCompletion;
 import dev.localllm.harness.application.model.CompactionOutcome;
 import dev.localllm.harness.application.model.ContextUsage;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.ModelCapability;
 import dev.localllm.harness.application.model.ModelInfo;
+import dev.localllm.harness.application.model.ProviderInfo;
 import dev.localllm.harness.application.model.RunningModelInfo;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.SessionInfo;
@@ -56,6 +60,27 @@ public interface TurnApplicationMapper {
       target = "toolsSupported",
       expression = "java(model.capabilities().contains(ModelCapability.TOOLS))")
   ModelSummaryResult toModelSummary(ModelInfo model);
+
+  /**
+   * Converts an available provider into the result of switching to it.
+   *
+   * @param provider provider state
+   * @return switch result
+   */
+  ProviderResult toProviderResult(ProviderInfo provider);
+
+  /**
+   * Converts a provider into its summary.
+   *
+   * @param info provider state
+   * @param activeProvider provider of the current session
+   * @return provider summary
+   */
+  @Mapping(target = "provider", source = "info.provider")
+  @Mapping(target = "available", source = "info.available")
+  @Mapping(target = "defaultModel", source = "info.defaultModel")
+  @Mapping(target = "active", expression = "java(info.provider() == activeProvider)")
+  ProviderSummaryResult toProviderSummary(ProviderInfo info, LlmProvider activeProvider);
 
   /**
    * Converts a loaded model into its result.

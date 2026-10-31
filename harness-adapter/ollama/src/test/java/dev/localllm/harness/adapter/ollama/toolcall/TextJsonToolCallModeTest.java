@@ -11,6 +11,7 @@ import org.springframework.ai.chat.messages.MessageType;
 import dev.localllm.harness.adapter.ollama.mapper.ChatMessageSpringAiMapper;
 import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.ChatRequest;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.ToolCall;
 import dev.localllm.harness.application.model.ToolResult;
@@ -47,8 +48,8 @@ class TextJsonToolCallModeTest {
         ChatMessage.toolResult(ToolResult.rejected(broken, "TOOL_ERROR: invalid JSON.")));
 
     // Act
-    List<Message> messages = mode.toMessages(new ChatRequest("codellama:7b", history, false,
-        TOOLS));
+    List<Message> messages = mode.toMessages(
+        new ChatRequest(LlmProvider.OLLAMA, "codellama:7b", history, false, TOOLS));
 
     // Assert
     assertThat(messages).extracting(Message::getMessageType).containsExactly(
@@ -69,7 +70,7 @@ class TextJsonToolCallModeTest {
   @Test
   void toMessages_WithoutSystemMessage_AddsToolPromptFirst() {
     // Act
-    List<Message> messages = mode.toMessages(new ChatRequest("codellama:7b",
+    List<Message> messages = mode.toMessages(new ChatRequest(LlmProvider.OLLAMA, "codellama:7b",
         List.of(new ChatMessage(Role.USER, "hi")), false, TOOLS));
 
     // Assert
@@ -81,7 +82,7 @@ class TextJsonToolCallModeTest {
   @Test
   void toMessages_WithoutTools_KeepsSystemPromptUnchanged() {
     // Act
-    List<Message> messages = mode.toMessages(new ChatRequest("codellama:7b",
+    List<Message> messages = mode.toMessages(new ChatRequest(LlmProvider.OLLAMA, "codellama:7b",
         List.of(new ChatMessage(Role.SYSTEM, "Be brief.")), false, List.of()));
 
     // Assert

@@ -32,6 +32,6 @@ public class GetContextUsageQueryService implements GetContextUsageQuery {
   @Override
   public ContextUsageResult execute(ContextUsageCriteria criteria) {
     return mapper.toContextUsageResult(contextMeter.measure(
-        conversationPort.history(criteria.sessionId()), criteria.model()));
+        conversationPort.history(criteria.sessionId()), criteria.provider(), criteria.model()));
   }
 }

@@ -141,12 +141,13 @@ public class AgentLoopService implements RunAgentTurnUseCase {
     }
     StringBuilder thinking = new StringBuilder();
     ChatCompletion completion = chatModelPort.stream(
-        new ChatRequest(command.model(), messages, command.thinkingEnabled(), tools),
+        new ChatRequest(
+            command.provider(), command.model(), messages, command.thinkingEnabled(), tools),
         chunk -> present(chunk, thinking));
     progress.add(completion);
     if (firstStep) {
       sessionRegistrar.registerIfNew(command.sessionId(), command.workingDirectory(),
-          command.model(), command.text());
+          command.provider(), command.model(), command.text());
       conversationPort.append(command.sessionId(), progress.userMessage);
     }
     List<ToolCall> calls = completion.status() == TurnStatus.COMPLETED
@@ -219,7 +220,7 @@ public class AgentLoopService implements RunAgentTurnUseCase {
   }
 
   private void compactIfNeeded(RunAgentTurnCommand command) {
-    compactor.compactIfNeeded(command.sessionId(), command.model())
+    compactor.compactIfNeeded(command.sessionId(), command.provider(), command.model())
         .ifPresent(outcome -> turnOutputPort.onCompaction(mapper.toCompactionResult(outcome)));
   }
 

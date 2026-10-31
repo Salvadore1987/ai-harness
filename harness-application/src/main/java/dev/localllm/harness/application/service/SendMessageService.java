@@ -63,13 +63,14 @@ public class SendMessageService implements SendMessageUseCase {
     ChatMessage userMessage = new ChatMessage(Role.USER, command.text());
     List<ChatMessage> messages = new ArrayList<>(conversationPort.history(command.sessionId()));
     messages.add(userMessage);
-    ChatRequest request = new ChatRequest(command.model(), messages, command.thinkingEnabled());
+    ChatRequest request = new ChatRequest(
+        command.provider(), command.model(), messages, command.thinkingEnabled());
     StringBuilder thinking = new StringBuilder();
 
     ChatCompletion completion = chatModelPort.stream(request, chunk -> present(chunk, thinking));
 
     sessionRegistrar.registerIfNew(command.sessionId(), command.workingDirectory(),
-        command.model(), command.text());
+        command.provider(), command.model(), command.text());
     conversationPort.append(command.sessionId(), userMessage);
     conversationPort.append(
         command.sessionId(), new ChatMessage(Role.ASSISTANT, completion.historyContent()));
@@ -78,7 +79,7 @@ public class SendMessageService implements SendMessageUseCase {
     }
     TurnResult result = mapper.toTurnResult(completion);
     turnOutputPort.onComplete(result);
-    compactor.compactIfNeeded(command.sessionId(), command.model())
+    compactor.compactIfNeeded(command.sessionId(), command.provider(), command.model())
         .ifPresent(outcome -> turnOutputPort.onCompaction(mapper.toCompactionResult(outcome)));
     return result;
   }

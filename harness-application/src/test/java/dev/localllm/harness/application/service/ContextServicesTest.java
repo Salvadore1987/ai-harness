@@ -20,6 +20,7 @@ import dev.localllm.harness.application.model.ChatChunk;
 import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.ChatRequest;
 import dev.localllm.harness.application.model.CompactionOutcome;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.ContextPolicy;
 import dev.localllm.harness.application.model.ContextUsage;
 import dev.localllm.harness.application.model.Role;
@@ -32,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ContextServicesTest {
 
+  private static final LlmProvider PROVIDER = LlmProvider.OLLAMA;
   private static final String MODEL = "qwen3.5:27b";
   private static final ContextPolicy POLICY = new ContextPolicy(0.8, 0.01, 4.0);
 
@@ -63,7 +65,7 @@ class ContextServicesTest {
     List<ChatMessage> messages = List.of(new ChatMessage(Role.USER, "a".repeat(3184)));
 
     // Act
-    ContextUsage usage = meter.measure(messages, MODEL);
+    ContextUsage usage = meter.measure(messages, PROVIDER, MODEL);
 
     // Assert
     assertThat(usage).isEqualTo(new ContextUsage(800, 1000, 80));
@@ -78,7 +80,7 @@ class ContextServicesTest {
     chatModel.respondWith(new ChatChunk.Content("  summary of q1-q2  "));
 
     // Act
-    CompactionOutcome outcome = compactor.compact(sessionId, MODEL);
+    CompactionOutcome outcome = compactor.compact(sessionId, PROVIDER, MODEL);
 
     // Assert
     assertThat(conversation.history(sessionId)).containsExactly(
@@ -97,7 +99,7 @@ class ContextServicesTest {
     chatModel.respondWith(new ChatChunk.Content("s"));
 
     // Act
-    compactor.compact(sessionId, MODEL);
+    compactor.compact(sessionId, PROVIDER, MODEL);
 
     // Assert
     ChatRequest request = chatModel.requests().getFirst();
@@ -114,7 +116,7 @@ class ContextServicesTest {
         new IllegalStateException("down")));
 
     // Act
-    CompactionOutcome outcome = compactor.compact(sessionId, MODEL);
+    CompactionOutcome outcome = compactor.compact(sessionId, PROVIDER, MODEL);
 
     // Assert
     assertThat(outcome.summarized()).isFalse();
@@ -129,7 +131,7 @@ class ContextServicesTest {
     chatModel.respondWith(new ChatChunk.Content("part")).endWith(TurnStatus.CANCELLED);
 
     // Act
-    CompactionOutcome outcome = compactor.compact(sessionId, MODEL);
+    CompactionOutcome outcome = compactor.compact(sessionId, PROVIDER, MODEL);
 
     // Assert
     assertThat(outcome.summarized()).isFalse();
@@ -143,7 +145,7 @@ class ContextServicesTest {
 
     // Act
     CompactionResult result = new CompactSessionService(compactor, mapper)
-        .execute(new CompactSessionCommand(sessionId, MODEL));
+        .execute(new CompactSessionCommand(sessionId, PROVIDER, MODEL));
 
     // Assert
     assertThat(result.compacted()).isFalse();
@@ -159,7 +161,7 @@ class ContextServicesTest {
     chatModel.respondWith(new ChatChunk.Content("s"));
 
     // Act
-    CompactionOutcome outcome = compactor.compact(sessionId, MODEL);
+    CompactionOutcome outcome = compactor.compact(sessionId, PROVIDER, MODEL);
 
     // Assert
     String transcript = chatModel.requests().getFirst().messages().getLast().content();
@@ -175,7 +177,7 @@ class ContextServicesTest {
     chatModel.respondWith(new ChatChunk.Content("s"));
 
     // Act
-    compactor.compact(sessionId, MODEL);
+    compactor.compact(sessionId, PROVIDER, MODEL);
 
     // Assert
     assertThat(conversation.history(sessionId))
@@ -194,7 +196,7 @@ class ContextServicesTest {
     chatModel.respondWith(new ChatChunk.Content("s"));
 
     // Act
-    compactor.compact(sessionId, MODEL);
+    compactor.compact(sessionId, PROVIDER, MODEL);
 
     // Assert
     assertThat(conversation.history(sessionId)).extracting(ChatMessage::role)
@@ -210,7 +212,7 @@ class ContextServicesTest {
     seed("q1", "a1");
 
     // Act
-    Optional<CompactionOutcome> outcome = compactor.compactIfNeeded(sessionId, MODEL);
+    Optional<CompactionOutcome> outcome = compactor.compactIfNeeded(sessionId, PROVIDER, MODEL);
 
     // Assert
     assertThat(outcome).isEmpty();
@@ -224,7 +226,8 @@ class ContextServicesTest {
         new GetContextUsageQueryService(conversation, meter, mapper);
 
     // Act
-    ContextUsageResult result = service.execute(new ContextUsageCriteria(sessionId, MODEL));
+    ContextUsageResult result =
+        service.execute(new ContextUsageCriteria(sessionId, PROVIDER, MODEL));
 
     // Assert
     assertThat(result).isEqualTo(new ContextUsageResult(103, 1000, 10));

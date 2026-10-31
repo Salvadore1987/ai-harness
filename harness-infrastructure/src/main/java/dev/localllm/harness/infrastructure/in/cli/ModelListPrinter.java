@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import dev.localllm.harness.application.dto.result.ModelSummaryResult;
 import dev.localllm.harness.application.dto.result.RunningModelResult;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.port.in.ListModelsQuery;
 import dev.localllm.harness.application.port.in.ListRunningModelsQuery;
 import dev.localllm.harness.infrastructure.in.cli.mapper.ReplCliMapper;
@@ -63,14 +64,15 @@ public class ModelListPrinter {
   }
 
   /**
-   * Prints the installed models with their size and capabilities.
+   * Prints the installed models of a provider with their size and capabilities.
    *
+   * @param provider provider whose models are listed
    * @param namePrefix name prefix, empty for all models
    * @param current model marked with {@code *}
    */
-  public void printInstalled(String namePrefix, String current) {
+  public void printInstalled(LlmProvider provider, String namePrefix, String current) {
     List<ModelSummaryResult> models =
-        listModelsQuery.execute(mapper.toListModelsCriteria(namePrefix));
+        listModelsQuery.execute(mapper.toListModelsCriteria(provider, namePrefix));
     PrintWriter writer = terminal.writer();
     if (models.isEmpty()) {
       writer.println(namePrefix.isEmpty()

@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.SessionInfo;
 import dev.localllm.harness.application.port.out.SessionCatalogPort;
@@ -35,13 +36,14 @@ public class SessionRegistrar {
    *
    * @param sessionId session identifier
    * @param workingDirectory directory the session works in
+   * @param provider provider of the session
    * @param model model of the first turn
    * @param firstMessage text of the first user message
    */
-  public void registerIfNew(
-      SessionId sessionId, Path workingDirectory, String model, String firstMessage) {
+  public void registerIfNew(SessionId sessionId, Path workingDirectory, LlmProvider provider,
+      String model, String firstMessage) {
     if (sessionCatalogPort.find(sessionId).isEmpty()) {
-      sessionCatalogPort.register(new SessionInfo(sessionId, workingDirectory, model,
+      sessionCatalogPort.register(new SessionInfo(sessionId, workingDirectory, provider, model,
           title(firstMessage), Instant.now(clock), 0));
     }
   }

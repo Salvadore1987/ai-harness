@@ -28,7 +28,7 @@ public class SwitchModelService implements SwitchModelUseCase {
 
   @Override
   public ModelSummaryResult execute(SwitchModelCommand command) {
-    return modelCatalogPort.findModel(command.model())
+    return modelCatalogPort.findModel(command.provider(), command.model())
         .map(mapper::toModelSummary)
         .orElseThrow(() -> new ModelNotFoundException(command.model()));
   }

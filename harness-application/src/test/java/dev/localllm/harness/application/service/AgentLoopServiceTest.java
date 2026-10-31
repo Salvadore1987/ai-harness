@@ -28,6 +28,7 @@ import dev.localllm.harness.application.model.ChatChunk;
 import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.ChatRequest;
 import dev.localllm.harness.application.model.ContextPolicy;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.Role;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.TokenUsage;
@@ -333,6 +334,6 @@ class AgentLoopServiceTest {
   }
 
   private RunAgentTurnCommand command(String text) {
-    return new RunAgentTurnCommand(sessionId, CWD, MODEL, text, true);
+    return new RunAgentTurnCommand(sessionId, CWD, LlmProvider.OLLAMA, MODEL, text, true);
   }
 }

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 
 import dev.localllm.harness.adapter.ollama.fixture.OllamaTestSupport;
 import dev.localllm.harness.application.exception.LlmUnavailableException;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.ModelCapability;
 import dev.localllm.harness.application.model.ModelInfo;
 
@@ -41,7 +42,7 @@ class OllamaModelCatalogAdapterIT {
     OllamaModelCatalogAdapter adapter = OllamaTestSupport.catalogAdapter(ollama.baseUrl());
 
     // Act
-    Optional<ModelInfo> model = adapter.findModel("qwen3.5:27b");
+    Optional<ModelInfo> model = adapter.findModel(LlmProvider.OLLAMA, "qwen3.5:27b");
 
     // Assert
     assertThat(model).contains(new ModelInfo("qwen3.5:27b", "27B", "Q4_K_M",
@@ -55,7 +56,7 @@ class OllamaModelCatalogAdapterIT {
     OllamaModelCatalogAdapter adapter = OllamaTestSupport.catalogAdapter(ollama.baseUrl());
 
     // Act
-    Optional<ModelInfo> model = adapter.findModel("qwen3.5:27b");
+    Optional<ModelInfo> model = adapter.findModel(LlmProvider.OLLAMA, "qwen3.5:27b");
 
     // Assert
     assertThat(model).hasValueSatisfying(info -> {
@@ -74,7 +75,7 @@ class OllamaModelCatalogAdapterIT {
     OllamaModelCatalogAdapter adapter = OllamaTestSupport.catalogAdapter(ollama.baseUrl());
 
     // Act
-    Optional<ModelInfo> model = adapter.findModel("missing");
+    Optional<ModelInfo> model = adapter.findModel(LlmProvider.OLLAMA, "missing");
 
     // Assert
     assertThat(model).isEmpty();
@@ -92,7 +93,7 @@ class OllamaModelCatalogAdapterIT {
     OllamaModelCatalogAdapter adapter = OllamaTestSupport.catalogAdapter(ollama.baseUrl());
 
     // Act
-    List<ModelInfo> models = adapter.listModels();
+    List<ModelInfo> models = adapter.listModels(LlmProvider.OLLAMA);
 
     // Assert
     assertThat(models).extracting(ModelInfo::name).containsExactly("qwen3.5:27b", "codellama:7b");
@@ -106,7 +107,8 @@ class OllamaModelCatalogAdapterIT {
     OllamaModelCatalogAdapter adapter = OllamaTestSupport.catalogAdapter("http://localhost:1");
 
     // Act & Assert
-    assertThatThrownBy(adapter::listModels).isInstanceOf(LlmUnavailableException.class);
+    assertThatThrownBy(() -> adapter.listModels(LlmProvider.OLLAMA))
+        .isInstanceOf(LlmUnavailableException.class);
   }
 
   private static void stubShow(String model, String body) {

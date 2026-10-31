@@ -29,6 +29,7 @@ import dev.localllm.harness.application.fixture.RecordingTurnOutputPort;
 import dev.localllm.harness.application.mapper.TurnApplicationMapper;
 import dev.localllm.harness.application.model.AgentPolicy;
 import dev.localllm.harness.application.model.ContextPolicy;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.ToolCall;
 import dev.localllm.harness.application.model.TurnStatus;
@@ -173,8 +174,8 @@ class AgentLiveIT {
   }
 
   private RunAgentTurnCommand command(String text, boolean thinking) {
-    return new RunAgentTurnCommand(SessionId.newId(), cwd, OllamaTestSupport.MODEL, text,
-        thinking);
+    return new RunAgentTurnCommand(SessionId.newId(), cwd, LlmProvider.OLLAMA,
+        OllamaTestSupport.MODEL, text, thinking);
   }
 
   private void writeCalc() throws IOException {

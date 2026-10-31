@@ -32,7 +32,7 @@ public class ToggleThinkingService implements ToggleThinkingUseCase {
   @Override
   public ThinkingToggleResult execute(ToggleThinkingCommand command) {
     if (command.enabled()) {
-      ModelInfo model = modelCatalogPort.findModel(command.model())
+      ModelInfo model = modelCatalogPort.findModel(command.provider(), command.model())
           .orElseThrow(() -> new ModelNotFoundException(command.model()));
       if (!model.capabilities().contains(ModelCapability.THINKING)) {
         throw new ThinkingNotSupportedException(command.model());

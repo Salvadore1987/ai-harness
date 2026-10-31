@@ -52,7 +52,7 @@ native tool calling), перенос истории между провайде�
    `--version` — 0.05 с, как до изменения. Раннер удалён, в коде только зависимость.
    *Обновление:* зависимость перенесена в `harness-adapter/anthropic/build.gradle.kts`
    (adapter-modules-plan, шаг 3).
-2. **Ядро: провайдер как понятие.** В `harness-application`:
+2. ✅ **Ядро: провайдер как понятие.** В `harness-application`:
    - `model/LlmProvider`, поле `provider` в `ChatRequest`, `SessionInfo` и в Command/Query,
      где уже есть модель (`SendMessageCommand`, `RunAgentTurnCommand`, `SwitchModelCommand`,
      `ToggleThinkingCommand`, `CompactSessionCommand`, `ListModelsCriteria`,
@@ -63,6 +63,21 @@ native tool calling), перенос истории между провайде�
      по умолчанию), `ListProvidersQuery` + `ListProvidersCriteria` → `ProviderSummaryResult`;
    - `ProviderUnavailableException` (диапазон `500xxx`), маппинг в `TurnApplicationMapper`;
    - wiring в `BeanConfig`, unit-тесты сервисов на фейках портов (AAA).
+
+   *Итог и отличия от плана:* `ProviderInfo(provider, available, defaultModel)` в `model`,
+   `ProviderCatalogPort.listProviders()`; `ListProvidersCriteria(activeProvider)` отмечает
+   активного провайдера в `ProviderSummaryResult.active`, список идёт в порядке `LlmProvider`.
+   `SessionSummaryResult` тоже получил `provider` — он нужен `/resume` (шаг 5). Код
+   `ProviderUnavailableException` — `500003`. Компактор и `ContextMeter` принимают провайдера
+   рядом с моделью. Чтобы новые use case'ы связывались в `BeanConfig`, добавлен временный
+   `infrastructure/out/routing/ProviderCatalogAdapter`: Ollama доступна с `harness.model`,
+   Anthropic недоступен с моделью `claude-opus-5-5` — шаг 3 переводит его на SPI, шаг 4 — на
+   настройки. До следующих шагов провайдер везде Ollama: `ReplSession` (шаг 6), команда
+   `list` (шаг 6), meta-строка JSONL (`JsonlLineMapper`, шаг 5); Ollama-адаптеры аргумент
+   провайдера не проверяют. Фейки ядра: `FakeProviderCatalogPort`, `FakeModelCatalogPort`
+   с моделями одного провайдера. Тестов 296 (+10); `clean check`, live (8), native smoke (8)
+   и REPL на native-бинарнике (чат, `/list`, `/model`, `/think`, `/context`, `/compact`,
+   `/resume`) зелёные.
 3. **Маршрутизация в инфраструктуре.** SPI `LlmProviderAdapters` (провайдер, chat, catalog,
    context budget, доступность) — интерфейс в `harness-application/port/out`, без Spring;
    реализацию для Ollama даёт `harness-adapter:ollama`. Маршрутизаторы `RoutingChatModelAdapter`,
