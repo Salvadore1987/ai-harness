@@ -9,7 +9,8 @@ dependencyResolutionManagement {
 include(
     "harness-application",
     "harness-infrastructure",
-    "harness-adapter-ollama",
-    "harness-adapter-anthropic",
+    "harness-adapter",
+    "harness-adapter:ollama",
+    "harness-adapter:anthropic",
     "harness-bootstrap"
 )

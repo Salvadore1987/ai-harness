@@ -35,8 +35,8 @@ native tool calling), перенос истории между провайде�
 ## Задачи
 
 Перед шагом 2 выполняется рефакторинг [adapter-modules-plan.md](adapter-modules-plan.md):
-адаптеры провайдеров переезжают в модули `harness-adapter-ollama` и
-`harness-adapter-anthropic`. После него шаги ниже уточняются.
+адаптеры провайдеров переезжают в модули `harness-adapter:ollama` и
+`harness-adapter:anthropic`. После него шаги ниже уточняются.
 
 1. ✅ **Spike SDK в native image.** `anthropic-java` 3.2.0 подключён в
    `gradle/libs.versions.toml` и `harness-infrastructure/build.gradle.kts`. BOM Spring Boot

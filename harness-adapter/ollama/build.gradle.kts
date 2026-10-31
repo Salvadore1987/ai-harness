@@ -1,11 +1,8 @@
 plugins {
-    `java-library`
     `java-test-fixtures`
 }
 
 dependencies {
-    api(project(":harness-application"))
-
     implementation(libs.spring.boot.starter)
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.ai.starter.model.ollama)

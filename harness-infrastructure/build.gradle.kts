@@ -25,8 +25,8 @@ dependencies {
 
     testImplementation(testFixtures(project(":harness-application")))
     // AgentLiveIT drives the built-in tools with a real Ollama model.
-    testImplementation(project(":harness-adapter-ollama"))
-    testImplementation(testFixtures(project(":harness-adapter-ollama")))
+    testImplementation(project(":harness-adapter:ollama"))
+    testImplementation(testFixtures(project(":harness-adapter:ollama")))
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.wiremock.standalone)
 }

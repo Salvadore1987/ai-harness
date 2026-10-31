@@ -16,15 +16,16 @@
 ```
 harness-bootstrap ──► harness-infrastructure ──────► harness-application
         │                                                  ▲
-        ├──────────► harness-adapter-ollama ───────────────┤
-        └──────────► harness-adapter-anthropic ────────────┘
+        ├──────────► harness-adapter:ollama ───────────────┤
+        └──────────► harness-adapter:anthropic ────────────┘
 ```
 
 ## Решения
 
 | Вопрос | Решение | Почему |
 |---|---|---|
-| Что выносится | Только LLM-провайдеры: `harness-adapter-ollama`, `harness-adapter-anthropic` | Изолирует самые тяжёлые и несовместимые зависимости; остальное не выигрывает от модулей |
+| Что выносится | Только LLM-провайдеры: `harness-adapter:ollama`, `harness-adapter:anthropic` | Изолирует самые тяжёлые и несовместимые зависимости; остальное не выигрывает от модулей |
+| Раскладка модулей | Общий родитель `harness-adapter/` с подмодулями `ollama`, `anthropic`; jar — `harness-adapter-<провайдер>` | Родитель задаёт для всех адаптеров `java-library` и единственную зависимость `api(":harness-application")`; новый провайдер — ещё один подмодуль |
 | Зависимости модуля адаптера | Только `api(project(":harness-application"))`; от `harness-infrastructure` и друг от друга — нет | Адаптер реализует порты ядра и больше ничего не знает; цикл с инфраструктурой невозможен |
 | Пакеты | `dev.localllm.harness.adapter.ollama` (+ `mapper`, `toolcall`, `dto`, `config`), `dev.localllm.harness.adapter.anthropic` | Пакет совпадает с модулем; ArchUnit проверяет границы по пакетам |
 | Настройки Ollama | `OllamaProperties` в модуле Ollama, привязан к тому же префиксу `harness`: `ollama-base-url`, `tool-call-modes`, `default-tool-call-mode`, `context.num-ctx`; эти поля уходят из `HarnessProperties` | Ключи и переменные `HARNESS_*` не меняются; перестройка ключей — шаг 4 provider-plan |
@@ -80,6 +81,11 @@ harness-bootstrap ──► harness-infrastructure ──────► harness
    (остаётся только `jackson-annotations` 2.21 — его использует и Jackson 3). Внешние
    зависимости runtime classpath `harness-bootstrap` совпадают с прежними, поэтому native и
    live не перезапускались; `clean check` зелёный (286 тестов).
+   *Дополнение:* оба модуля перенесены в общий родитель `harness-adapter/` (Gradle-пути
+   `:harness-adapter:ollama`, `:harness-adapter:anthropic`). Родительский
+   `build.gradle.kts` применяет к подмодулям `java-library`, `api(":harness-application")` и
+   имя jar `harness-adapter-<имя>`; в build-скриптах провайдеров остались только их
+   собственные зависимости. `clean check` зелёный (286 тестов), оба jar в `harness.jar`.
 4. **Закрепить границы и проверить.** ArchUnit (`HexagonalArchitectureTest`): `application` не
    зависит от `..adapter..`; `infrastructure` не зависит от `..adapter..`; адаптеры не
    зависят от `..infrastructure..`, `..bootstrap..` и друг от друга (slices). Общий порог
@@ -91,7 +97,7 @@ harness-bootstrap ──► harness-infrastructure ──────► harness
    таблице модулей ADR-001; граф модулей и таблица в `docs/build.md`; раздел архитектуры в
    `docs/java-ai-harness.md`; правила в `implementation-plan.md`. В `provider-plan.md`:
    ссылка на этот план как на предварительный этап, SPI — в `port/out` ядра, адаптер Claude —
-   в `harness-adapter-anthropic`, ADR о провайдерах становится ADR-006.
+   в `harness-adapter:anthropic`, ADR о провайдерах становится ADR-006.
 
 ## Риски
 
