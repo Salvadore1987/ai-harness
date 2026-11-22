@@ -11,6 +11,16 @@ public class LlmResponseException extends HarnessException {
   public static final String CODE = "500002";
 
   /**
+   * Creates the exception for an answer the server sent successfully but that cannot be used,
+   * for example a refusal.
+   *
+   * @param message description of the answer
+   */
+  public LlmResponseException(String message) {
+    super(CODE, message);
+  }
+
+  /**
    * Creates the exception.
    *
    * @param message description returned by the server

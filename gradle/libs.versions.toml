@@ -37,6 +37,8 @@ spring-ai-starter-mcp-client = { module = "org.springframework.ai:spring-ai-star
 picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
 picocli-codegen = { module = "info.picocli:picocli-codegen", version.ref = "picocli" }
 jline = { module = "org.jline:jline", version.ref = "jline" }
+slf4j-api = { module = "org.slf4j:slf4j-api" }
+jackson-databind = { module = "tools.jackson.core:jackson-databind" }
 mapstruct = { module = "org.mapstruct:mapstruct", version.ref = "mapstruct" }
 anthropic-java = { module = "com.anthropic:anthropic-java", version.ref = "anthropic-java" }
 mapstruct-processor = { module = "org.mapstruct:mapstruct-processor", version.ref = "mapstruct" }

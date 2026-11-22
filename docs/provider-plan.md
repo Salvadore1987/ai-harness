@@ -162,7 +162,7 @@ native tool calling), перенос истории между провайде�
    использования; `list --provider anthropic` и `--provider anthropic -p` — код 1. Пока модуля
    Anthropic в SPI нет (шаги 7–8), `/provider` показывает только Ollama, а `anthropic`
    недоступен даже с ключом; переключение на доступного провайдера покрыто тестами на фейках.
-7. **`AnthropicChatAdapter`** (модуль `harness-adapter:anthropic`, пакет
+7. ✅ **`AnthropicChatAdapter`** (модуль `harness-adapter:anthropic`, пакет
    `dev.localllm.harness.adapter.anthropic`). Стриминг SDK → `ChatChunk` (thinking, text, tool_use с
    `eager_input_streaming` и проверкой input по схеме). Отмена закрывает стрим; обрыв после
    первого чанка — `INTERRUPTED`, как у Ollama. Обработка `stop_reason`: `refusal` →
@@ -172,6 +172,39 @@ native tool calling), перенос истории между провайде�
    MapStruct в `adapter/anthropic/mapper/` (MapStruct и processor добавить в
    build-скрипт модуля): `ChatMessage` ↔ `MessageParam`, `ToolSpec` → `Tool`,
    usage → `TokenUsage`.
+   *Итог и отличия от плана:* стрим читается через асинхронный клиент SDK
+   (`client.async().messages().createStreaming`): вызывающий поток только ждёт конца, поэтому
+   отмена возвращает `CANCELLED` сразу, даже пока запрос ждёт заголовков ответа, и закрывает
+   стрим; поздние события после отмены отбрасываются. Клиент — бин `AnthropicClient` в
+   `AnthropicConfig`, собирается только из настроек (ключ, `baseUrl`), не из окружения SDK.
+   Thinking всегда `adaptive`, `/think` переключает `display` (`summarized`/`omitted`), `effort`
+   и `max_tokens` — из `AnthropicProperties`; системные сообщения истории уходят в `system`.
+   История: результаты инструментов идут блоками `tool_result` в user-сообщении, соседние
+   сообщения одной стороны сливаются (параллельные вызовы — одним сообщением), пустой текст не
+   отправляется, вызов `parse_error` и его результат передаются текстом. Инструменты — с
+   `eager_input_streaming`; input накапливает `toolcall/ToolUseCollector` и строго разбирает в
+   конце ответа, `ToolInputValidator` проверяет верхний уровень схемы (объект, `required`, `type`,
+   `additionalProperties: false`). Если хоть один вызов ответа невалиден, вызовы не
+   возвращаются, а `toolCallError` объясняет причину — агентный цикл отвечает `TOOL_ERROR`.
+   `stop_reason`: `max_tokens` и `model_context_window_exceeded` — `INTERRUPTED` без вызовов,
+   `refusal` — `LlmResponseException` «Claude declined the request (category: …): …» (в ядро
+   добавлен конструктор `LlmResponseException(String)`), стрим без `stop_reason` —
+   `INTERRUPTED` (или ошибка, если не пришло ничего). Usage: prompt = `input_tokens` + cache
+   read/creation из `message_start`, completion — `output_tokens` последнего `message_delta`.
+   Мапперы MapStruct: `ChatMessageAnthropicMapper`, `ToolSpecAnthropicMapper`,
+   `UsageAnthropicMapper` (только в сторону API — обратный маппинг не нужен). JSON в модуле —
+   Jackson 3 (`JsonMapper.shared()`), в SDK передаются `Map`/`List` через `JsonValue.from`:
+   правило ArchUnit `noJackson2` запрещает Jackson 2 и в модулях адаптеров. В модуль добавлены
+   MapStruct, `slf4j-api`, `jackson-databind` (Jackson 3), WireMock в тесты. Ошибки SDK пока
+   переводит минимальный `AnthropicErrorTranslator` (всё → `LlmResponseException`); цепочку
+   типизированных исключений и тексты в CLI («Ошибка Ollama: …» в `LlmErrorHandler`) делает
+   шаг 8. Фасад SPI `AnthropicProviderAdapters` тоже появится в шаге 8 вместе с каталогом,
+   поэтому в бинарнике Anthropic пока недоступен. SDK 3.2.0 отправляет ключ заголовком
+   `Authorization: Bearer`. Тестов 347 (+20: WireMock IT адаптера — thinking/text, тело запроса,
+   `tool_use`, невалидный input, `max_tokens`, `refusal`, обрыв без `stop_reason`, 401, отмена
+   до заголовков; unit-тесты маппера истории и валидатора); `clean check` и native smoke (8)
+   зелёные. Живой проверки не было — `ANTHROPIC_API_KEY` не задан; асинхронный путь SDK в
+   native-образе проверит шаг 10.
 8. **Каталог, бюджет контекста, ошибки Anthropic** (там же). `AnthropicModelCatalogAdapter` —
    `models.list()` / `retrieve()` (404 → пусто), capability `THINKING` и `TOOLS`;
    `AnthropicContextBudgetAdapter` — `max_input_tokens` с кэшем, fallback на `numCtx`;
