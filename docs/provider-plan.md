@@ -101,7 +101,7 @@ native tool calling), перенос истории между провайде�
    (+9, фейк SPI — `FakeLlmProviderAdapters`); `clean check`, live (8), native smoke (8) и REPL
    на native-бинарнике (чат, `/list`, `/ps`, `/model`, `/context`, агентный ход с `read_file`,
    `/resume`) зелёные.
-4. **Настройки.** `HarnessProperties`: `provider` (стартовый, по умолчанию `ollama`).
+4. ✅ **Настройки.** `HarnessProperties`: `provider` (стартовый, по умолчанию `ollama`).
    `AnthropicProperties` в `harness-adapter:anthropic` (префикс `harness.anthropic`):
    `apiKey` (`${ANTHROPIC_API_KEY:}`), `baseUrl`, `model` (по умолчанию `claude-opus-5-5`),
    `maxTokens` (64000), `effort` (по умолчанию `high`); регистрируется в конфигурации модуля
@@ -109,6 +109,21 @@ native tool calling), перенос истории между провайде�
    включаются. `harness.model` (`HarnessProperties`) и `harness.ollama-base-url`
    (`OllamaProperties`) остаются настройками Ollama — без поломки `config.yml` пользователей.
    Обновить `application.yml`; ключ не логируется и не попадает в сообщения об ошибках.
+   *Итог и отличия от плана:* `HarnessProperties.provider` (`HARNESS_PROVIDER`, по умолчанию
+   `ollama`) пока только читается — стартовый провайдер применяет CLI в шаге 6.
+   `AnthropicProperties`: `apiKey` (`ANTHROPIC_API_KEY`, пустой — провайдер недоступен),
+   `baseUrl` (`ANTHROPIC_BASE_URL`, по умолчанию `https://api.anthropic.com`), `model`
+   (`HARNESS_ANTHROPIC_MODEL`), `maxTokens` (`HARNESS_ANTHROPIC_MAX_TOKENS`, 1–128000),
+   `effort` (`HARNESS_ANTHROPIC_EFFORT`: `low`/`medium`/`high`/`xhigh`/`max`). `toString()`
+   записи не содержит ключа — только `<set>` или `<empty>`. `AnthropicConfig` связывает запись
+   и регистрирует `AnthropicNativeHints`; модулю добавлены Spring Boot starter, validation и
+   configuration processor. Модель Ollama по умолчанию уже читается в `OllamaProperties.model`
+   (шаг 3). Тестов 309 (+4: binding и маскирование ключа, значения из `application.yml` в
+   `HarnessApplicationIT`); `clean check`, live (8) и native smoke (8) зелёные. В бинарнике
+   неверный `HARNESS_PROVIDER` останавливает старт (код 1, причина в `harness.log`), ключ не
+   появляется ни в выводе, ни в логе. Из-за `lazy-initialization` `AnthropicProperties`
+   связывается и валидируется при первом использовании: пока бин никто не читает, неверные
+   `effort` или `max-tokens` не мешают старту — их проверит адаптер Claude (шаг 7).
 5. **Сессии.** `JsonlSessionCatalogAdapter` и `JsonlLine` хранят провайдера; старые файлы без
    поля читаются как `OLLAMA`. `/resume` восстанавливает провайдера и модель сессии, а для
    недоступного провайдера сообщает об ошибке и оставляет текущую сессию.

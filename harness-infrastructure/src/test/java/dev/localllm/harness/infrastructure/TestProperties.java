@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
 
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.infrastructure.config.HarnessProperties;
 
 /**
@@ -25,7 +26,7 @@ public final class TestProperties {
    * @return settings
    */
   public static HarnessProperties create(Path home, boolean persistThinking) {
-    return new HarnessProperties("qwen3.5:27b", home,
+    return new HarnessProperties(LlmProvider.OLLAMA, "qwen3.5:27b", home,
         new HarnessProperties.Thinking(true, HarnessProperties.ThinkingDisplay.STREAM,
             persistThinking),
         new HarnessProperties.Context(0.8, 0.25, 3.5),

@@ -18,10 +18,13 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.util.FileSystemUtils;
 import picocli.CommandLine;
 
+import dev.localllm.harness.adapter.anthropic.config.AnthropicProperties;
 import dev.localllm.harness.adapter.ollama.config.OllamaProperties.ToolCallModeType;
 import dev.localllm.harness.adapter.ollama.toolcall.ToolCallModeResolver;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.ToolSpec;
 import dev.localllm.harness.application.port.out.ToolExecutorPort;
+import dev.localllm.harness.infrastructure.config.HarnessProperties;
 import dev.localllm.harness.infrastructure.in.cli.HarnessCommand;
 import dev.localllm.harness.infrastructure.in.cli.handlers.PicocliExceptionHandler;
 
@@ -70,6 +73,12 @@ class HarnessApplicationIT {
   @Autowired
   private ToolExecutorPort toolExecutor;
 
+  @Autowired
+  private HarnessProperties harnessProperties;
+
+  @Autowired
+  private AnthropicProperties anthropicProperties;
+
   @BeforeAll
   static void cleanHome() throws IOException {
     FileSystemUtils.deleteRecursively(HOME);
@@ -97,6 +106,16 @@ class HarnessApplicationIT {
         .noneMatch(name -> name.startsWith("mcp__"));
     mcpServer.verify(postRequestedFor(urlEqualTo("/mcp"))
         .withHeader("Authorization", equalTo("Bearer it-token")));
+  }
+
+  @Test
+  void providerSettings_FromApplicationYml_StartWithOllamaAndConfigureClaude() {
+    // Act & Assert
+    assertThat(harnessProperties.provider()).isEqualTo(LlmProvider.OLLAMA);
+    assertThat(anthropicProperties.baseUrl()).isEqualTo("https://api.anthropic.com");
+    assertThat(anthropicProperties.model()).isEqualTo("claude-opus-5-5");
+    assertThat(anthropicProperties.maxTokens()).isEqualTo(64_000);
+    assertThat(anthropicProperties.effort()).isEqualTo(AnthropicProperties.Effort.HIGH);
   }
 
   @Test

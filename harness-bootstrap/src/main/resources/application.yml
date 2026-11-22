@@ -30,6 +30,8 @@ spring:
         # streamable-http.connections.<name>: {url: https://host, endpoint: /mcp}
 
 harness:
+  # Provider the CLI starts with: ollama | anthropic.
+  provider: ${HARNESS_PROVIDER:ollama}
   model: ${HARNESS_MODEL:qwen3.5:27b}
   ollama-base-url: ${HARNESS_OLLAMA_BASE_URL:http://localhost:11434}
   home: ${HARNESS_HOME:${user.home}/.harness}
@@ -54,5 +56,13 @@ harness:
   tool-call-modes:
     "[codellama]": ${HARNESS_TOOL_CALL_MODE_CODELLAMA:text-json}
   default-tool-call-mode: ${HARNESS_DEFAULT_TOOL_CALL_MODE:native}
+  # Claude API. Without a key the provider stays unavailable; server-side fallbacks are not used.
+  anthropic:
+    api-key: ${ANTHROPIC_API_KEY:}
+    base-url: ${ANTHROPIC_BASE_URL:https://api.anthropic.com}
+    model: ${HARNESS_ANTHROPIC_MODEL:claude-opus-5-5}
+    max-tokens: ${HARNESS_ANTHROPIC_MAX_TOKENS:64000}
+    # low | medium | high | xhigh | max; Claude Opus 5.5 defaults to medium without it.
+    effort: ${HARNESS_ANTHROPIC_EFFORT:high}
   # Stdio MCP servers are read from <home>/mcp.json. Headers of a Streamable HTTP server,
   # usually set in config.yml: mcp.headers.<name>.Authorization: "Bearer ${GITHUB_TOKEN:}"

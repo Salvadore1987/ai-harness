@@ -14,11 +14,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.validation.annotation.Validated;
 
+import dev.localllm.harness.application.model.LlmProvider;
+
 /**
  * Provider-neutral harness settings bound from {@code harness.*}; the Ollama settings of the same
  * prefix are bound by {@code OllamaProperties}.
  *
- * @param model default model tag used on startup
+ * @param provider LLM provider the CLI starts with
+ * @param model model tag the CLI starts with when the start provider is Ollama
  * @param home directory for sessions, history, logs and user configuration
  * @param thinking thinking mode defaults
  * @param context context window and compaction rules
@@ -29,6 +32,7 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties("harness")
 @Validated
 public record HarnessProperties(
+    @NotNull LlmProvider provider,
     @NotBlank String model,
     @NotNull Path home,
     @NotNull @Valid Thinking thinking,
