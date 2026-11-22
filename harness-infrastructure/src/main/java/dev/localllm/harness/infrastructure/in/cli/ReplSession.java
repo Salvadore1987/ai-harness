@@ -60,13 +60,14 @@ public final class ReplSession {
   }
 
   /**
-   * Switches to a stored session.
+   * Switches to a stored session and its provider; the model is applied by the caller.
    *
    * @param resumed the session to continue
    */
   public void resume(SessionSummaryResult resumed) {
     this.sessionId = resumed.sessionId();
     this.title = resumed.title();
+    this.provider = resumed.provider();
   }
 
   /**

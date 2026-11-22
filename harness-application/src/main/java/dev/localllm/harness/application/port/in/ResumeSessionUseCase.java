@@ -15,6 +15,8 @@ public interface ResumeSessionUseCase {
    * @return the session to continue
    * @throws dev.localllm.harness.application.exception.SessionNotFoundException if no session
    *     matches
+   * @throws dev.localllm.harness.application.exception.ProviderUnavailableException if the
+   *     provider of the session cannot be used
    */
   SessionSummaryResult execute(ResumeSessionCommand command);
 }

@@ -124,15 +124,26 @@ native tool calling), перенос истории между провайде�
    появляется ни в выводе, ни в логе. Из-за `lazy-initialization` `AnthropicProperties`
    связывается и валидируется при первом использовании: пока бин никто не читает, неверные
    `effort` или `max-tokens` не мешают старту — их проверит адаптер Claude (шаг 7).
-5. **Сессии.** `JsonlSessionCatalogAdapter` и `JsonlLine` хранят провайдера; старые файлы без
+5. ✅ **Сессии.** `JsonlSessionCatalogAdapter` и `JsonlLine` хранят провайдера; старые файлы без
    поля читаются как `OLLAMA`. `/resume` восстанавливает провайдера и модель сессии, а для
    недоступного провайдера сообщает об ошибке и оставляет текущую сессию.
+   *Итог и отличия от плана:* meta-строка `JsonlLine` получила поле `provider`, а
+   `JsonlLineMapper` читает его с `defaultValue = "OLLAMA"`. `ResumeSessionService` (теперь с
+   `ProviderCatalogPort`) бросает `ProviderUnavailableException` до переключения, поэтому
+   `/resume` и `--resume` не трогают текущую сессию. `ReplSession.resume` восстанавливает
+   провайдера; `/resume` берёт модель сессии и проверяет её через
+   `ModelSlashCommands.applySessionModel` (возможности модели, `Модель: …`) — раньше `/resume`
+   в REPL оставлял текущую модель. Из шага 6 сюда переехал `ProviderErrorHandler`: без него
+   `/resume` не смог бы объяснить ошибку («Провайдер anthropic недоступен: задайте
+   ANTHROPIC_API_KEY»). Тестов 315 (+6); `clean check`, live (8), native smoke (8) зелёные.
+   На native-бинарнике: старая сессия без поля продолжается как Ollama, новая пишет
+   `"provider":"OLLAMA"`, сессия Anthropic без ключа — ошибка, текущая сессия сохраняется.
 6. **CLI.** `/provider` без аргумента — список провайдеров с доступностью и отметкой
    активного; `/provider <name>` — `SwitchProviderUseCase`, затем новая сессия
    (`StartSessionUseCase`) и модель по умолчанию в `ReplSession`. Флаг `--provider` у
    `HarnessCommand` и `list`; `/ps` для Anthropic отвечает «не поддерживается». Автодополнение
-   в `SlashCommandCompleter`, `/help`, обработчик `ProviderErrorHandler` в `in/cli/handlers/`,
-   маппинг в `ReplCliMapper`.
+   в `SlashCommandCompleter`, `/help`, маппинг в `ReplCliMapper` (`ProviderErrorHandler` уже
+   есть — шаг 5).
 7. **`AnthropicChatAdapter`** (модуль `harness-adapter:anthropic`, пакет
    `dev.localllm.harness.adapter.anthropic`). Стриминг SDK → `ChatChunk` (thinking, text, tool_use с
    `eager_input_streaming` и проверкой input по схеме). Отмена закрывает стрим; обрыв после

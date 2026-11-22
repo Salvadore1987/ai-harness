@@ -6,39 +6,51 @@ import java.util.UUID;
 
 import dev.localllm.harness.application.dto.command.ResumeSessionCommand;
 import dev.localllm.harness.application.dto.result.SessionSummaryResult;
+import dev.localllm.harness.application.exception.ProviderUnavailableException;
 import dev.localllm.harness.application.exception.SessionNotFoundException;
 import dev.localllm.harness.application.mapper.TurnApplicationMapper;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.model.SessionInfo;
 import dev.localllm.harness.application.port.in.ResumeSessionUseCase;
+import dev.localllm.harness.application.port.out.ProviderCatalogPort;
 import dev.localllm.harness.application.port.out.SessionCatalogPort;
 
 /**
  * Finds the session to continue: the latest of the directory, a full identifier from any
- * directory, or a unique identifier prefix among the sessions of the directory.
+ * directory, or a unique identifier prefix among the sessions of the directory. A session whose
+ * provider cannot be used in this run is not continued.
  */
 public class ResumeSessionService implements ResumeSessionUseCase {
 
   private final SessionCatalogPort sessionCatalogPort;
+  private final ProviderCatalogPort providerCatalogPort;
   private final TurnApplicationMapper mapper;
 
   /**
    * Creates the service.
    *
    * @param sessionCatalogPort stored session metadata
+   * @param providerCatalogPort providers and their availability
    * @param mapper converts metadata into the result
    */
-  public ResumeSessionService(SessionCatalogPort sessionCatalogPort, TurnApplicationMapper mapper) {
+  public ResumeSessionService(SessionCatalogPort sessionCatalogPort,
+      ProviderCatalogPort providerCatalogPort, TurnApplicationMapper mapper) {
     this.sessionCatalogPort = sessionCatalogPort;
+    this.providerCatalogPort = providerCatalogPort;
     this.mapper = mapper;
   }
 
   @Override
   public SessionSummaryResult execute(ResumeSessionCommand command) {
     String reference = command.reference().strip();
-    return resolve(command, reference)
-        .map(mapper::toSessionSummary)
+    SessionInfo session = resolve(command, reference)
         .orElseThrow(() -> new SessionNotFoundException(reference));
+    boolean available = providerCatalogPort.listProviders().stream()
+        .anyMatch(info -> info.provider() == session.provider() && info.available());
+    if (!available) {
+      throw new ProviderUnavailableException(session.provider());
+    }
+    return mapper.toSessionSummary(session);
   }
 
   private Optional<SessionInfo> resolve(ResumeSessionCommand command, String reference) {

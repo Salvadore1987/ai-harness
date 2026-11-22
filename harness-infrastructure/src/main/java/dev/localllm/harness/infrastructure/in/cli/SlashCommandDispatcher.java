@@ -64,7 +64,10 @@ public class SlashCommandDispatcher {
         Map.entry("/clear", (session, argument) -> sessionCommands.clear(session)),
         Map.entry("/sessions", (session, argument) -> sessionCommands.sessions(session)),
         Map.entry("/purge", (session, argument) -> sessionCommands.purge(session)),
-        Map.entry("/resume", sessionCommands::resume),
+        Map.entry("/resume", (session, argument) -> {
+          sessionCommands.resume(session, argument);
+          modelCommands.applySessionModel(session);
+        }),
         Map.entry("/compact", (session, argument) -> sessionCommands.compact(session)),
         Map.entry("/context", (session, argument) -> sessionCommands.context(session)),
         Map.entry("/save", sessionCommands::save),

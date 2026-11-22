@@ -15,8 +15,10 @@ import dev.localllm.harness.application.dto.query.ListSessionsCriteria;
 import dev.localllm.harness.application.dto.result.PurgedSessionsResult;
 import dev.localllm.harness.application.dto.result.SessionResult;
 import dev.localllm.harness.application.dto.result.SessionSummaryResult;
+import dev.localllm.harness.application.exception.ProviderUnavailableException;
 import dev.localllm.harness.application.exception.SessionNotFoundException;
 import dev.localllm.harness.application.fixture.FakeChatModelPort;
+import dev.localllm.harness.application.fixture.FakeProviderCatalogPort;
 import dev.localllm.harness.application.fixture.FakeSessionCatalogPort;
 import dev.localllm.harness.application.mapper.TurnApplicationMapper;
 import dev.localllm.harness.application.model.LlmProvider;
@@ -33,7 +35,10 @@ class SessionServicesTest {
 
   private final TurnApplicationMapper mapper = Mappers.getMapper(TurnApplicationMapper.class);
   private final FakeSessionCatalogPort catalog = new FakeSessionCatalogPort();
-  private final ResumeSessionService resume = new ResumeSessionService(catalog, mapper);
+  private final ResumeSessionService resume = new ResumeSessionService(catalog,
+      new FakeProviderCatalogPort(
+          FakeProviderCatalogPort.OLLAMA, FakeProviderCatalogPort.ANTHROPIC_UNAVAILABLE),
+      mapper);
 
   @Test
   void startSession_Always_ReturnsNewTimeOrderedId() {
@@ -106,6 +111,38 @@ class SessionServicesTest {
     assertThatThrownBy(() -> resume.execute(new ResumeSessionCommand(CWD, "0")))
         .isInstanceOf(SessionNotFoundException.class)
         .hasMessageContaining("0");
+  }
+
+  @Test
+  void resume_AnthropicSessionWithAnthropicAvailable_ReturnsItsProviderAndModel() {
+    // Arrange
+    SessionInfo stored = new SessionInfo(SessionId.newId(), CWD, LlmProvider.ANTHROPIC,
+        "claude-opus-5-5", "claude work", Instant.parse("2026-10-29T10:00:00Z"), 4);
+    catalog.register(stored);
+    ResumeSessionService service = new ResumeSessionService(catalog,
+        new FakeProviderCatalogPort(FakeProviderCatalogPort.OLLAMA,
+            FakeProviderCatalogPort.ANTHROPIC),
+        mapper);
+
+    // Act
+    SessionSummaryResult result = service.execute(new ResumeSessionCommand(CWD, ""));
+
+    // Assert
+    assertThat(result.provider()).isEqualTo(LlmProvider.ANTHROPIC);
+    assertThat(result.model()).isEqualTo("claude-opus-5-5");
+  }
+
+  @Test
+  void resume_SessionOfUnavailableProvider_ThrowsProviderUnavailable() {
+    // Arrange
+    catalog.register(new SessionInfo(SessionId.newId(), CWD, LlmProvider.ANTHROPIC,
+        "claude-opus-5-5", "claude work", Instant.parse("2026-10-29T10:00:00Z"), 4));
+    ResumeSessionCommand command = new ResumeSessionCommand(CWD, "");
+
+    // Act & Assert
+    assertThatThrownBy(() -> resume.execute(command))
+        .isInstanceOf(ProviderUnavailableException.class)
+        .hasMessageContaining("ANTHROPIC");
   }
 
   @Test

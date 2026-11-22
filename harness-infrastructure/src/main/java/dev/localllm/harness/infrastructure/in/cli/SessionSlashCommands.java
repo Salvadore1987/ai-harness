@@ -128,7 +128,9 @@ public class SessionSlashCommands {
   }
 
   /**
-   * {@code /resume [id]}: switches to a stored session, the latest one without an argument.
+   * {@code /resume [id]}: switches to a stored session, the latest one without an argument,
+   * with its provider and model. The model is validated afterwards by
+   * {@link ModelSlashCommands#applySessionModel}.
    *
    * @param session CLI state
    * @param reference identifier or prefix, empty for the latest session
@@ -137,6 +139,7 @@ public class SessionSlashCommands {
     SessionSummaryResult resumed =
         resumeSessionUseCase.execute(mapper.toResumeSessionCommand(session, reference));
     session.resume(resumed);
+    session.applyModelName(resumed.model());
     println("Сессия «" + resumed.title() + "» (" + resumed.messageCount() + " сообщ.)");
   }
 

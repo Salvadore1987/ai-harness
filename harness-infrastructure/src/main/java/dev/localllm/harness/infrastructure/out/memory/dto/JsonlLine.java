@@ -10,7 +10,8 @@ import org.jspecify.annotations.Nullable;
  * One line of a session file; {@code type} tells which fields are set.
  *
  * <ul>
- *   <li>{@code meta} — {@code sessionId}, {@code cwd}, {@code model}, {@code title}</li>
+ *   <li>{@code meta} — {@code sessionId}, {@code cwd}, {@code provider}, {@code model},
+ *       {@code title}; files written before providers have no {@code provider}</li>
  *   <li>{@code message} — {@code role}, {@code content}; an assistant message may carry
  *       {@code toolCalls}, a {@code TOOL_RESULT} message carries {@code callId} and
  *       {@code toolName}</li>
@@ -22,6 +23,7 @@ import org.jspecify.annotations.Nullable;
  * @param type line type
  * @param sessionId session identifier
  * @param cwd working directory of the session
+ * @param provider LLM provider of the session, for example {@code OLLAMA}
  * @param model model of the first turn
  * @param title beginning of the first user message
  * @param role message role: {@code SYSTEM}, {@code USER}, {@code ASSISTANT} or
@@ -39,6 +41,7 @@ public record JsonlLine(
     String type,
     @Nullable String sessionId,
     @Nullable String cwd,
+    @Nullable String provider,
     @Nullable String model,
     @Nullable String title,
     @Nullable String role,

@@ -271,13 +271,14 @@ public class BeanConfig {
    * Session resume use case.
    *
    * @param sessionCatalogPort session metadata storage
+   * @param providerCatalogPort providers and their availability
    * @param mapper result mapper
    * @return the use case
    */
   @Bean
-  public ResumeSessionUseCase resumeSessionUseCase(
-      SessionCatalogPort sessionCatalogPort, TurnApplicationMapper mapper) {
-    return new ResumeSessionService(sessionCatalogPort, mapper);
+  public ResumeSessionUseCase resumeSessionUseCase(SessionCatalogPort sessionCatalogPort,
+      ProviderCatalogPort providerCatalogPort, TurnApplicationMapper mapper) {
+    return new ResumeSessionService(sessionCatalogPort, providerCatalogPort, mapper);
   }
 
   /**

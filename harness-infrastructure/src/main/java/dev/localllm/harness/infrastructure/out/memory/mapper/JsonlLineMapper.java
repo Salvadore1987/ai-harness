@@ -44,15 +44,15 @@ public interface JsonlLineMapper {
   JsonlLine toMetaLine(SessionInfo info);
 
   /**
-   * Restores session metadata from its meta line. The meta line does not store the provider
-   * yet, so every stored session is an Ollama session.
+   * Restores session metadata from its meta line. A file written before providers existed has
+   * no provider and belongs to Ollama.
    *
    * @param line meta line
    * @param messageCount number of message lines in the file
    * @return session metadata
    */
   @Mapping(target = "workingDirectory", source = "line.cwd")
-  @Mapping(target = "provider", constant = "OLLAMA")
+  @Mapping(target = "provider", source = "line.provider", defaultValue = "OLLAMA")
   @Mapping(target = "messageCount", source = "messageCount")
   SessionInfo toSessionInfo(JsonlLine line, int messageCount);
 
@@ -68,12 +68,13 @@ public interface JsonlLineMapper {
     String text = Objects.requireNonNullElse(message.getText(), "");
     if (message instanceof ToolResponseMessage tool && !tool.getResponses().isEmpty()) {
       ToolResponseMessage.ToolResponse response = tool.getResponses().getFirst();
-      return new JsonlLine(JsonlLine.MESSAGE, null, null, null, null, JsonlLine.TOOL_RESULT_ROLE,
-          response.responseData(), null, response.id(), response.name(), null, null, createdAt);
+      return new JsonlLine(JsonlLine.MESSAGE, null, null, null, null, null,
+          JsonlLine.TOOL_RESULT_ROLE, response.responseData(), null, response.id(),
+          response.name(), null, null, createdAt);
     }
     List<JsonlToolCall> toolCalls = message instanceof AssistantMessage assistant
         && assistant.hasToolCalls() ? toJsonlToolCalls(assistant.getToolCalls()) : null;
-    return new JsonlLine(JsonlLine.MESSAGE, null, null, null, null,
+    return new JsonlLine(JsonlLine.MESSAGE, null, null, null, null, null,
         message.getMessageType().name(), text, toolCalls, null, null, null, null, createdAt);
   }
 
@@ -149,7 +150,7 @@ public interface JsonlLineMapper {
    */
   default JsonlLine toCompactionLine(String summary, int replacedCount, Instant createdAt) {
     return new JsonlLine(JsonlLine.COMPACTION, null, null, null, null, null, null, null, null,
-        null, summary, replacedCount, createdAt);
+        null, null, summary, replacedCount, createdAt);
   }
 
   /**
@@ -160,8 +161,8 @@ public interface JsonlLineMapper {
    * @return thinking line
    */
   default JsonlLine toThinkingLine(String thinking, Instant createdAt) {
-    return new JsonlLine(JsonlLine.THINKING, null, null, null, null, null, thinking, null, null,
-        null, null, null, createdAt);
+    return new JsonlLine(JsonlLine.THINKING, null, null, null, null, null, null, thinking, null,
+        null, null, null, null, createdAt);
   }
 
   /**

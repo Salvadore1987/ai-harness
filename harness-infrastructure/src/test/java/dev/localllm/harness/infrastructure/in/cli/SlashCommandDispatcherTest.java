@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import dev.localllm.harness.application.dto.result.SessionSummaryResult;
 import dev.localllm.harness.application.exception.LlmUnavailableException;
+import dev.localllm.harness.application.fixture.FakeModelCatalogPort;
 import dev.localllm.harness.application.model.ChatChunk;
 import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.LlmProvider;
@@ -251,6 +252,44 @@ class SlashCommandDispatcherTest {
     // Assert
     assertThat(session.getSessionId()).isEqualTo(stored.sessionId());
     assertThat(session.getTitle()).isEqualTo("Earlier work");
+  }
+
+  @Test
+  void dispatch_ResumeSessionOfOtherModel_RestoresItsModelAndCapabilities() {
+    // Arrange
+    SessionInfo stored = new SessionInfo(SessionId.newId(), CliTestContext.CWD,
+        LlmProvider.OLLAMA, FakeModelCatalogPort.CODELLAMA.name(), "Old work",
+        Instant.parse("2026-10-29T10:00:00Z"), 2);
+    context.catalog.register(stored);
+
+    // Act
+    dispatcher.dispatch("/resume", session);
+
+    // Assert
+    assertThat(session.getSessionId()).isEqualTo(stored.sessionId());
+    assertThat(session.getProvider()).isEqualTo(LlmProvider.OLLAMA);
+    assertThat(session.getModel()).isEqualTo(FakeModelCatalogPort.CODELLAMA.name());
+    assertThat(session.isThinkingSupported()).isFalse();
+    assertThat(context.terminal.plainText()).contains("Модель: codellama:7b-instruct");
+  }
+
+  @Test
+  void dispatch_ResumeSessionOfUnavailableProvider_KeepsCurrentSession() {
+    // Arrange
+    SessionId current = session.getSessionId();
+    context.catalog.register(new SessionInfo(SessionId.newId(), CliTestContext.CWD,
+        LlmProvider.ANTHROPIC, "claude-opus-5-5", "Claude work",
+        Instant.parse("2026-10-29T10:00:00Z"), 2));
+
+    // Act
+    dispatcher.dispatch("/resume", session);
+
+    // Assert
+    assertThat(session.getSessionId()).isEqualTo(current);
+    assertThat(session.getProvider()).isEqualTo(LlmProvider.OLLAMA);
+    assertThat(session.getModel()).isEqualTo(FakeModelCatalogPort.QWEN.name());
+    assertThat(context.terminal.plainText())
+        .contains("Провайдер anthropic недоступен: задайте ANTHROPIC_API_KEY");
   }
 
   @Test

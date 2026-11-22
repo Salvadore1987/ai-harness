@@ -11,6 +11,7 @@ import picocli.CommandLine;
 
 import dev.localllm.harness.application.fixture.FakeChatModelPort;
 import dev.localllm.harness.application.fixture.FakeModelCatalogPort;
+import dev.localllm.harness.application.fixture.FakeProviderCatalogPort;
 import dev.localllm.harness.application.fixture.FakeRunningModelsPort;
 import dev.localllm.harness.application.fixture.FakeSessionCatalogPort;
 import dev.localllm.harness.application.fixture.FakeToolExecutorPort;
@@ -51,6 +52,7 @@ import dev.localllm.harness.infrastructure.in.cli.handlers.PicocliExceptionHandl
 import dev.localllm.harness.infrastructure.in.cli.handlers.FallbackErrorHandler;
 import dev.localllm.harness.infrastructure.in.cli.handlers.LlmErrorHandler;
 import dev.localllm.harness.infrastructure.in.cli.handlers.ModelErrorHandler;
+import dev.localllm.harness.infrastructure.in.cli.handlers.ProviderErrorHandler;
 import dev.localllm.harness.infrastructure.in.cli.handlers.SessionErrorHandler;
 import dev.localllm.harness.infrastructure.in.cli.handlers.ToolErrorHandler;
 import dev.localllm.harness.infrastructure.in.cli.mapper.ReplCliMapper;
@@ -76,6 +78,8 @@ final class CliTestContext {
       .withMcpTool("mcp__fs__list_directory", "fs");
   final TurnCancellation cancellation = new TurnCancellation();
   final DisplayOptions displayOptions = new DisplayOptions();
+  final FakeProviderCatalogPort providers = new FakeProviderCatalogPort(
+      FakeProviderCatalogPort.OLLAMA, FakeProviderCatalogPort.ANTHROPIC_UNAVAILABLE);
   final FakeModelCatalogPort models =
       new FakeModelCatalogPort(FakeModelCatalogPort.QWEN, FakeModelCatalogPort.CODELLAMA);
   final FakeRunningModelsPort runningModels =
@@ -83,7 +87,8 @@ final class CliTestContext {
   final ReplCliMapper mapper = Mappers.getMapper(ReplCliMapper.class);
   final CliErrorReporter reporter = new CliErrorReporter(
       List.of(new LlmErrorHandler(), new ModelErrorHandler(), new SessionErrorHandler(),
-          new ToolErrorHandler(), new AnswerErrorHandler(), new FallbackErrorHandler()),
+          new ToolErrorHandler(), new AnswerErrorHandler(), new ProviderErrorHandler(),
+          new FallbackErrorHandler()),
       terminal.terminal());
   final HarnessProperties properties =
       TestProperties.create(Path.of("build/harness-home"), false);
@@ -103,7 +108,7 @@ final class CliTestContext {
   SessionSlashCommands sessionCommands() {
     return new SessionSlashCommands(
         new StartSessionService(applicationMapper),
-        new ResumeSessionService(catalog, applicationMapper),
+        new ResumeSessionService(catalog, providers, applicationMapper),
         new ListSessionsQueryService(catalog, applicationMapper),
         new PurgeSessionsService(catalog, applicationMapper),
         new CompactSessionService(compactor, applicationMapper),
@@ -152,7 +157,7 @@ final class CliTestContext {
   HarnessCommand command() {
     return new HarnessCommand(
         new StartSessionService(applicationMapper),
-        new ResumeSessionService(catalog, applicationMapper),
+        new ResumeSessionService(catalog, providers, applicationMapper),
         new SwitchModelService(models, applicationMapper),
         mapper, turnExecutor(),
         new ReplRunner(terminal.terminal(), turnExecutor(), dispatcher(), properties),

@@ -109,6 +109,31 @@ class JsonlSessionStorageTest {
   }
 
   @Test
+  void readSession_OfAnthropicSession_RestoresItsProvider() throws IOException {
+    // Arrange
+    repository.writeMeta(new SessionInfo(sessionId, Path.of("/work/project"),
+        LlmProvider.ANTHROPIC, "claude-opus-5-5", "Explain", NOW, 0));
+
+    // Act & Assert
+    assertThat(Files.readString(file())).contains("\"provider\":\"ANTHROPIC\"");
+    assertThat(repository.readSession(id())).map(SessionInfo::provider)
+        .contains(LlmProvider.ANTHROPIC);
+  }
+
+  @Test
+  void readSession_OfFileWithoutProvider_TreatsItAsOllama() throws IOException {
+    // Arrange
+    Files.createDirectories(file().getParent());
+    Files.writeString(file(), "{\"type\":\"meta\",\"sessionId\":\"" + id()
+        + "\",\"cwd\":\"/work/project\",\"model\":\"qwen3.5:27b\",\"title\":\"Old\","
+        + "\"createdAt\":\"2026-10-29T10:00:00Z\"}\n", StandardCharsets.UTF_8);
+
+    // Act & Assert
+    assertThat(repository.readSession(id())).map(SessionInfo::provider)
+        .contains(LlmProvider.OLLAMA);
+  }
+
+  @Test
   void get_AfterCompaction_ReturnsSummaryAndKeptMessages() {
     // Arrange
     memory.add(id(), List.of(new UserMessage("q1"), new AssistantMessage("a1"),

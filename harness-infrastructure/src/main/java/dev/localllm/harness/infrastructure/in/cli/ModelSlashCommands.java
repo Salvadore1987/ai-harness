@@ -60,6 +60,16 @@ public class ModelSlashCommands {
   }
 
   /**
+   * Validates the model the session has just switched to, for example after {@code /resume},
+   * and applies its capabilities.
+   *
+   * @param session CLI state with the provider and model to validate
+   */
+  public void applySessionModel(ReplSession session) {
+    switchModel(session, session.getModel());
+  }
+
+  /**
    * {@code /list [prefix]}: lists the installed models, marking the current one.
    *
    * @param session CLI state with the current model
