@@ -138,12 +138,30 @@ native tool calling), перенос истории между провайде�
    ANTHROPIC_API_KEY»). Тестов 315 (+6); `clean check`, live (8), native smoke (8) зелёные.
    На native-бинарнике: старая сессия без поля продолжается как Ollama, новая пишет
    `"provider":"OLLAMA"`, сессия Anthropic без ключа — ошибка, текущая сессия сохраняется.
-6. **CLI.** `/provider` без аргумента — список провайдеров с доступностью и отметкой
+6. ✅ **CLI.** `/provider` без аргумента — список провайдеров с доступностью и отметкой
    активного; `/provider <name>` — `SwitchProviderUseCase`, затем новая сессия
    (`StartSessionUseCase`) и модель по умолчанию в `ReplSession`. Флаг `--provider` у
    `HarnessCommand` и `list`; `/ps` для Anthropic отвечает «не поддерживается». Автодополнение
    в `SlashCommandCompleter`, `/help`, маппинг в `ReplCliMapper` (`ProviderErrorHandler` уже
    есть — шаг 5).
+   *Итог и отличия от плана:* команда — отдельный `ProviderSlashCommands`; после смены
+   провайдера модель по умолчанию проверяется через `ModelSlashCommands.applySessionModel`, как
+   после `/resume`. `/provider` с уже активным провайдером сессию не меняет; неизвестное имя —
+   подсказка со списком. Имена провайдеров без учёта регистра разбирает `LlmProviderConverter`
+   (он же конвертер picocli). `--provider` (по умолчанию `harness.provider`) применяется только
+   к новой сессии: `--resume` продолжает провайдера сессии; `--model` по-прежнему перекрывает
+   модель. `harness list --provider P` отмечает модель по умолчанию провайдера и для
+   недоступного провайдера завершается с кодом 1. `ReplSession.applyProvider`, баннер REPL
+   показывает провайдера; `ReplCliMapper`: `toSwitchProviderCommand`,
+   `toListProvidersCriteria`. Сообщение о пустом списке моделей зависит от провайдера
+   (`ollama pull` — только для Ollama). Подкоманда `harness ps` остаётся Ollama-only. Фейк
+   `FakeModelCatalogPort` получил `withModels` и модель `CLAUDE`, `CliTestContext` — конструктор
+   с провайдерами. Тестов 327 (+12); `clean check` и native smoke (8) зелёные. На
+   native-бинарнике: `/provider` (список, отметка активного), `/provider anthropic` без ключа —
+   ошибка, сессия не меняется; `/provider ollama` — «уже активен»; `--provider openai` — ошибка
+   использования; `list --provider anthropic` и `--provider anthropic -p` — код 1. Пока модуля
+   Anthropic в SPI нет (шаги 7–8), `/provider` показывает только Ollama, а `anthropic`
+   недоступен даже с ключом; переключение на доступного провайдера покрыто тестами на фейках.
 7. **`AnthropicChatAdapter`** (модуль `harness-adapter:anthropic`, пакет
    `dev.localllm.harness.adapter.anthropic`). Стриминг SDK → `ChatChunk` (thinking, text, tool_use с
    `eager_input_streaming` и проверкой input по схеме). Отмена закрывает стрим; обрыв после

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
 import dev.localllm.harness.application.exception.LlmUnavailableException;
+import dev.localllm.harness.application.fixture.FakeProviderCatalogPort;
 import dev.localllm.harness.application.model.ChatChunk;
 import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.ChatRequest;
@@ -147,6 +148,47 @@ class HarnessCommandTest {
   }
 
   @Test
+  void execute_PrintModeWithProviderAnthropic_SendsToItsDefaultModel() {
+    // Arrange
+    CliTestContext anthropicContext = new CliTestContext(
+        FakeProviderCatalogPort.OLLAMA, FakeProviderCatalogPort.ANTHROPIC);
+    anthropicContext.chatModel.respondWith(new ChatChunk.Content("hi"));
+
+    // Act
+    int exitCode = new CommandLine(anthropicContext.command())
+        .execute("--provider", "ANTHROPIC", "-p", "say hi");
+
+    // Assert
+    assertThat(exitCode).isZero();
+    ChatRequest request = anthropicContext.chatModel.requests().getFirst();
+    assertThat(request.provider()).isEqualTo(LlmProvider.ANTHROPIC);
+    assertThat(request.model()).isEqualTo("claude-opus-5-5");
+  }
+
+  @Test
+  void execute_PrintModeWithUnavailableProvider_ReportsAndExitsWithOne() {
+    // Act
+    int exitCode = new CommandLine(context.command())
+        .execute("--provider", "anthropic", "-p", "hi");
+
+    // Assert
+    assertThat(exitCode).isOne();
+    assertThat(context.chatModel.requests()).isEmpty();
+    assertThat(context.terminal.plainText())
+        .contains("✗ Провайдер anthropic недоступен: задайте ANTHROPIC_API_KEY");
+  }
+
+  @Test
+  void execute_WithUnknownProvider_FailsWithUsageError() {
+    // Act
+    int exitCode = new CommandLine(context.command()).execute("--provider", "openai", "-p", "hi");
+
+    // Assert
+    assertThat(exitCode).isNotZero();
+    assertThat(context.chatModel.requests()).isEmpty();
+  }
+
+  @Test
   void execute_PrintModeWithResume_ContinuesLatestSessionAndItsModel() {
     // Arrange
     SessionId stored = SessionId.newId();
@@ -189,6 +231,33 @@ class HarnessCommandTest {
     assertThat(context.terminal.plainText())
         .contains("* qwen3.5:27b", "  codellama:7b-instruct");
     assertThat(context.chatModel.requests()).isEmpty();
+  }
+
+  @Test
+  void execute_ListSubcommandWithProviderAnthropic_PrintsClaudeModels() {
+    // Arrange
+    CliTestContext anthropicContext = new CliTestContext(
+        FakeProviderCatalogPort.OLLAMA, FakeProviderCatalogPort.ANTHROPIC);
+
+    // Act
+    int exitCode = anthropicContext.commandLine().execute("list", "--provider", "anthropic");
+
+    // Assert
+    assertThat(exitCode).isZero();
+    assertThat(anthropicContext.terminal.plainText())
+        .contains("* claude-opus-5-5")
+        .doesNotContain("qwen3.5:27b");
+  }
+
+  @Test
+  void execute_ListSubcommandWithUnavailableProvider_ReportsAndExitsWithOne() {
+    // Act
+    int exitCode = context.commandLine().execute("list", "--provider", "anthropic");
+
+    // Assert
+    assertThat(exitCode).isOne();
+    assertThat(context.terminal.plainText())
+        .contains("Провайдер anthropic недоступен: задайте ANTHROPIC_API_KEY");
   }
 
   @Test

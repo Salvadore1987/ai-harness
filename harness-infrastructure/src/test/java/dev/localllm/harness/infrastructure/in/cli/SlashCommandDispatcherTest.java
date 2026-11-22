@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import dev.localllm.harness.application.dto.result.SessionSummaryResult;
 import dev.localllm.harness.application.exception.LlmUnavailableException;
 import dev.localllm.harness.application.fixture.FakeModelCatalogPort;
+import dev.localllm.harness.application.fixture.FakeProviderCatalogPort;
 import dev.localllm.harness.application.model.ChatChunk;
 import dev.localllm.harness.application.model.ChatMessage;
 import dev.localllm.harness.application.model.LlmProvider;
@@ -403,6 +404,112 @@ class SlashCommandDispatcherTest {
 
     // Assert
     assertThat(context.terminal.plainText()).contains("Контекст: ~0 из 65536 токенов (0 %)");
+  }
+
+  @Test
+  void dispatch_ProviderWithoutArgument_ListsProvidersMarkingActive() {
+    // Act
+    dispatcher.dispatch("/provider", session);
+
+    // Assert
+    assertThat(context.terminal.plainText())
+        .containsPattern("\\* ollama +доступен +qwen3\\.5:27b")
+        .containsPattern("  anthropic +недоступен +claude-opus-5-5");
+  }
+
+  @Test
+  void dispatch_ProviderAnthropic_StartsNewSessionWithItsDefaultModel() {
+    // Arrange
+    CliTestContext anthropicContext = new CliTestContext(
+        FakeProviderCatalogPort.OLLAMA, FakeProviderCatalogPort.ANTHROPIC);
+    ReplSession current = anthropicContext.session();
+    SessionId previous = current.getSessionId();
+
+    // Act
+    anthropicContext.dispatcher().dispatch("/provider Anthropic", current);
+
+    // Assert
+    assertThat(current.getProvider()).isEqualTo(LlmProvider.ANTHROPIC);
+    assertThat(current.getModel()).isEqualTo(FakeModelCatalogPort.CLAUDE.name());
+    assertThat(current.getSessionId()).isNotNull().isNotEqualTo(previous);
+    assertThat(anthropicContext.terminal.plainText())
+        .contains("Провайдер: anthropic. Новая сессия", "Модель: claude-opus-5-5");
+  }
+
+  @Test
+  void dispatch_ProviderUnavailable_KeepsCurrentSessionAndModel() {
+    // Arrange
+    SessionId current = session.getSessionId();
+
+    // Act
+    dispatcher.dispatch("/provider anthropic", session);
+
+    // Assert
+    assertThat(session.getProvider()).isEqualTo(LlmProvider.OLLAMA);
+    assertThat(session.getModel()).isEqualTo(FakeModelCatalogPort.QWEN.name());
+    assertThat(session.getSessionId()).isEqualTo(current);
+    assertThat(context.terminal.plainText())
+        .contains("Провайдер anthropic недоступен: задайте ANTHROPIC_API_KEY");
+  }
+
+  @Test
+  void dispatch_ProviderAlreadyActive_KeepsCurrentSession() {
+    // Arrange
+    SessionId current = session.getSessionId();
+
+    // Act
+    dispatcher.dispatch("/provider ollama", session);
+
+    // Assert
+    assertThat(session.getSessionId()).isEqualTo(current);
+    assertThat(context.terminal.plainText()).contains("Провайдер ollama уже активен");
+  }
+
+  @Test
+  void dispatch_ProviderUnknown_ListsKnownNames() {
+    // Act
+    dispatcher.dispatch("/provider openai", session);
+
+    // Assert
+    assertThat(session.getProvider()).isEqualTo(LlmProvider.OLLAMA);
+    assertThat(context.terminal.plainText())
+        .contains("Неизвестный провайдер openai. Доступны: ollama, anthropic");
+  }
+
+  @Test
+  void dispatch_PsWithAnthropic_SaysNotSupported() {
+    // Arrange
+    CliTestContext anthropicContext = new CliTestContext(
+        FakeProviderCatalogPort.OLLAMA, FakeProviderCatalogPort.ANTHROPIC);
+    ReplSession current = anthropicContext.session();
+    SlashCommandDispatcher anthropicDispatcher = anthropicContext.dispatcher();
+    anthropicDispatcher.dispatch("/provider anthropic", current);
+
+    // Act
+    anthropicDispatcher.dispatch("/ps", current);
+
+    // Assert
+    assertThat(anthropicContext.terminal.plainText())
+        .contains("/ps не поддерживается провайдером anthropic")
+        .doesNotContain("100% GPU");
+  }
+
+  @Test
+  void dispatch_ListWithAnthropic_ShowsOnlyClaudeModels() {
+    // Arrange
+    CliTestContext anthropicContext = new CliTestContext(
+        FakeProviderCatalogPort.OLLAMA, FakeProviderCatalogPort.ANTHROPIC);
+    ReplSession current = anthropicContext.session();
+    SlashCommandDispatcher anthropicDispatcher = anthropicContext.dispatcher();
+    anthropicDispatcher.dispatch("/provider anthropic", current);
+
+    // Act
+    anthropicDispatcher.dispatch("/list", current);
+
+    // Assert
+    assertThat(anthropicContext.terminal.plainText())
+        .contains("* claude-opus-5-5")
+        .doesNotContain("codellama");
   }
 
   @Test

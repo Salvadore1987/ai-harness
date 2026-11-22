@@ -18,8 +18,8 @@ public class SlashCommandDispatcher {
 
   /** Names of the supported commands, used for completion. */
   public static final List<String> COMMANDS = List.of("/help", "/exit", "/clear", "/sessions",
-      "/purge", "/resume", "/compact", "/context", "/save", "/model", "/list", "/ps", "/think",
-      "/mode", "/tools");
+      "/purge", "/resume", "/compact", "/context", "/save", "/provider", "/model", "/list", "/ps",
+      "/think", "/mode", "/tools");
 
   private static final String HELP = """
       /help                 список команд
@@ -31,9 +31,10 @@ public class SlashCommandDispatcher {
       /compact              сжать историю: старая часть заменяется сводкой
       /context              сколько контекста занято
       /save [файл]          сохранить последний ответ в файл дословно, без перегенерации
-      /model [имя]          сменить модель; без имени — список установленных
-      /list [префикс]       установленные модели
-      /ps [префикс]         модели, загруженные в память Ollama
+      /provider [имя]       ollama или anthropic, в новой сессии; без имени — список
+      /model [имя]          сменить модель провайдера; без имени — список установленных
+      /list [префикс]       модели текущего провайдера
+      /ps [префикс]         модели, загруженные в память Ollama (только для ollama)
       /think [on|off]       режим размышлений; без аргумента — текущее состояние
       /mode [chat|agent]    режим: chat — ответ без инструментов, agent — модель читает файлы
       /tools [префикс]      инструменты агента
@@ -49,6 +50,7 @@ public class SlashCommandDispatcher {
    *
    * @param sessionCommands session-related commands
    * @param modelCommands model-related commands
+   * @param providerCommands provider-related commands
    * @param agentCommands agent-related commands
    * @param errorReporter prints failures
    * @param terminal terminal to print to
@@ -56,6 +58,7 @@ public class SlashCommandDispatcher {
   public SlashCommandDispatcher(
       SessionSlashCommands sessionCommands,
       ModelSlashCommands modelCommands,
+      ProviderSlashCommands providerCommands,
       AgentSlashCommands agentCommands,
       CliErrorReporter errorReporter,
       Terminal terminal) {
@@ -71,9 +74,10 @@ public class SlashCommandDispatcher {
         Map.entry("/compact", (session, argument) -> sessionCommands.compact(session)),
         Map.entry("/context", (session, argument) -> sessionCommands.context(session)),
         Map.entry("/save", sessionCommands::save),
+        Map.entry("/provider", providerCommands::provider),
         Map.entry("/model", modelCommands::model),
         Map.entry("/list", modelCommands::list),
-        Map.entry("/ps", (session, argument) -> modelCommands.ps(argument)),
+        Map.entry("/ps", modelCommands::ps),
         Map.entry("/think", modelCommands::think),
         Map.entry("/mode", agentCommands::mode),
         Map.entry("/tools", (session, argument) -> agentCommands.tools(argument)));

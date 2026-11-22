@@ -75,9 +75,7 @@ public class ModelListPrinter {
         listModelsQuery.execute(mapper.toListModelsCriteria(provider, namePrefix));
     PrintWriter writer = terminal.writer();
     if (models.isEmpty()) {
-      writer.println(namePrefix.isEmpty()
-          ? "Нет установленных моделей. Выполните: ollama pull " + current
-          : "Нет установленных моделей с префиксом " + namePrefix);
+      writer.println(emptyListMessage(provider, namePrefix, current));
     } else {
       writer.printf(Locale.ROOT, INSTALLED_ROW, "  ", "МОДЕЛЬ", "ПАРАМ.", "КВАНТ.", "ВОЗМОЖНОСТИ");
       for (ModelSummaryResult model : models) {
@@ -111,6 +109,16 @@ public class ModelListPrinter {
       }
     }
     writer.flush();
+  }
+
+  private static String emptyListMessage(LlmProvider provider, String namePrefix, String current) {
+    if (!namePrefix.isEmpty()) {
+      return "Нет моделей с префиксом " + namePrefix;
+    }
+    return switch (provider) {
+      case OLLAMA -> "Нет установленных моделей. Выполните: ollama pull " + current;
+      case ANTHROPIC -> "API Anthropic не вернул ни одной модели";
+    };
   }
 
   private static String capabilities(ModelSummaryResult model) {

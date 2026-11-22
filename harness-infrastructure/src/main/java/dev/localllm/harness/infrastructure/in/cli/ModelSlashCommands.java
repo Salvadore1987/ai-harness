@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import dev.localllm.harness.application.dto.result.ModelSummaryResult;
 import dev.localllm.harness.application.dto.result.ThinkingToggleResult;
+import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.port.in.SwitchModelUseCase;
 import dev.localllm.harness.application.port.in.ToggleThinkingUseCase;
 import dev.localllm.harness.infrastructure.in.cli.mapper.ReplCliMapper;
@@ -80,11 +81,19 @@ public class ModelSlashCommands {
   }
 
   /**
-   * {@code /ps [prefix]}: lists the models loaded into memory by Ollama.
+   * {@code /ps [prefix]}: lists the models loaded into memory by Ollama; other providers run
+   * their models remotely.
    *
+   * @param session CLI state with the current provider
    * @param argument name prefix, empty for all loaded models
    */
-  public void ps(String argument) {
+  public void ps(ReplSession session, String argument) {
+    if (session.getProvider() != LlmProvider.OLLAMA) {
+      println("/ps не поддерживается провайдером "
+          + LlmProviderConverter.displayName(session.getProvider())
+          + ": модели работают на стороне API");
+      return;
+    }
     modelListPrinter.printRunning(argument);
   }
 

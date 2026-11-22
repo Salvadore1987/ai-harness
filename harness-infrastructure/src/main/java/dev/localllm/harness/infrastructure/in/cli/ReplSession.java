@@ -5,6 +5,7 @@ import java.nio.file.Path;
 import org.jspecify.annotations.Nullable;
 
 import dev.localllm.harness.application.dto.result.ModelSummaryResult;
+import dev.localllm.harness.application.dto.result.ProviderResult;
 import dev.localllm.harness.application.dto.result.SessionSummaryResult;
 import dev.localllm.harness.application.model.LlmProvider;
 import dev.localllm.harness.application.model.SessionId;
@@ -78,6 +79,17 @@ public final class ReplSession {
   public void startNew(SessionId newSessionId) {
     this.sessionId = newSessionId;
     this.title = null;
+  }
+
+  /**
+   * Switches to a validated provider and its default model; the model is validated by the
+   * caller, the session is started by the caller.
+   *
+   * @param selected the provider and its default model
+   */
+  public void applyProvider(ProviderResult selected) {
+    this.provider = selected.provider();
+    this.model = selected.defaultModel();
   }
 
   /**

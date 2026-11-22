@@ -142,7 +142,8 @@ public class ReplRunner {
 
   private void printBanner(ReplSession session) {
     String title = session.getTitle();
-    hint("harness · модель " + session.getModel()
+    hint("harness · " + LlmProviderConverter.displayName(session.getProvider())
+        + " · модель " + session.getModel()
         + " · режим " + session.getMode().name().toLowerCase(Locale.ROOT)
         + " · размышления " + (session.isThinkingEnabled() ? "on" : "off")
         + " · " + session.getWorkingDirectory()

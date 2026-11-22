@@ -12,9 +12,11 @@ import dev.localllm.harness.application.dto.command.SaveAnswerCommand;
 import dev.localllm.harness.application.dto.command.SendMessageCommand;
 import dev.localllm.harness.application.dto.command.StartSessionCommand;
 import dev.localllm.harness.application.dto.command.SwitchModelCommand;
+import dev.localllm.harness.application.dto.command.SwitchProviderCommand;
 import dev.localllm.harness.application.dto.command.ToggleThinkingCommand;
 import dev.localllm.harness.application.dto.query.ContextUsageCriteria;
 import dev.localllm.harness.application.dto.query.ListModelsCriteria;
+import dev.localllm.harness.application.dto.query.ListProvidersCriteria;
 import dev.localllm.harness.application.dto.query.ListRunningModelsCriteria;
 import dev.localllm.harness.application.dto.query.ListSessionsCriteria;
 import dev.localllm.harness.application.dto.query.ListToolsCriteria;
@@ -115,6 +117,24 @@ public interface ReplCliMapper {
   @Mapping(target = "provider", source = "session.provider")
   @Mapping(target = "model", source = "model")
   SwitchModelCommand toSwitchModelCommand(ReplSession session, String model);
+
+  /**
+   * Builds the command that switches to another provider.
+   *
+   * @param provider target provider
+   * @return switch command
+   */
+  @Mapping(target = "provider", source = "provider")
+  SwitchProviderCommand toSwitchProviderCommand(LlmProvider provider);
+
+  /**
+   * Builds the provider list criteria marking the provider of the session.
+   *
+   * @param session CLI state with the current provider
+   * @return list criteria
+   */
+  @Mapping(target = "activeProvider", source = "provider")
+  ListProvidersCriteria toListProvidersCriteria(ReplSession session);
 
   /**
    * Builds the command that toggles thinking for the current model.

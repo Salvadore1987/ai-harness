@@ -22,6 +22,8 @@ import dev.localllm.harness.application.fixture.RecordingTurnOutputPort;
 import dev.localllm.harness.application.mapper.TurnApplicationMapper;
 import dev.localllm.harness.application.model.AgentPolicy;
 import dev.localllm.harness.application.model.ContextPolicy;
+import dev.localllm.harness.application.model.LlmProvider;
+import dev.localllm.harness.application.model.ProviderInfo;
 import dev.localllm.harness.application.model.SessionId;
 import dev.localllm.harness.application.service.AgentLoopService;
 import dev.localllm.harness.application.service.CancelTurnService;
@@ -30,6 +32,7 @@ import dev.localllm.harness.application.service.ContextMeter;
 import dev.localllm.harness.application.service.ConversationCompactor;
 import dev.localllm.harness.application.service.GetContextUsageQueryService;
 import dev.localllm.harness.application.service.ListModelsQueryService;
+import dev.localllm.harness.application.service.ListProvidersQueryService;
 import dev.localllm.harness.application.service.ListRunningModelsQueryService;
 import dev.localllm.harness.application.service.ListSessionsQueryService;
 import dev.localllm.harness.application.service.ListToolsQueryService;
@@ -40,6 +43,7 @@ import dev.localllm.harness.application.service.SendMessageService;
 import dev.localllm.harness.application.service.SessionRegistrar;
 import dev.localllm.harness.application.service.StartSessionService;
 import dev.localllm.harness.application.service.SwitchModelService;
+import dev.localllm.harness.application.service.SwitchProviderService;
 import dev.localllm.harness.application.service.ToggleThinkingService;
 import dev.localllm.harness.application.service.TurnCancellation;
 import dev.localllm.harness.infrastructure.TestProperties;
@@ -78,10 +82,10 @@ final class CliTestContext {
       .withMcpTool("mcp__fs__list_directory", "fs");
   final TurnCancellation cancellation = new TurnCancellation();
   final DisplayOptions displayOptions = new DisplayOptions();
-  final FakeProviderCatalogPort providers = new FakeProviderCatalogPort(
-      FakeProviderCatalogPort.OLLAMA, FakeProviderCatalogPort.ANTHROPIC_UNAVAILABLE);
+  final FakeProviderCatalogPort providers;
   final FakeModelCatalogPort models =
-      new FakeModelCatalogPort(FakeModelCatalogPort.QWEN, FakeModelCatalogPort.CODELLAMA);
+      new FakeModelCatalogPort(FakeModelCatalogPort.QWEN, FakeModelCatalogPort.CODELLAMA)
+          .withModels(LlmProvider.ANTHROPIC, FakeModelCatalogPort.CLAUDE);
   final FakeRunningModelsPort runningModels =
       new FakeRunningModelsPort(FakeRunningModelsPort.QWEN);
   final ReplCliMapper mapper = Mappers.getMapper(ReplCliMapper.class);
@@ -100,9 +104,31 @@ final class CliTestContext {
       new ConversationCompactor(conversation, chatModel, meter);
   private final SessionRegistrar registrar = new SessionRegistrar(catalog, Clock.systemUTC());
 
+  /** Ollama is available, Anthropic has no API key. */
+  CliTestContext() {
+    this(FakeProviderCatalogPort.OLLAMA, FakeProviderCatalogPort.ANTHROPIC_UNAVAILABLE);
+  }
+
+  /**
+   * Context with the given providers.
+   *
+   * @param providers providers of this run
+   */
+  CliTestContext(ProviderInfo... providers) {
+    this.providers = new FakeProviderCatalogPort(providers);
+  }
+
   SlashCommandDispatcher dispatcher() {
-    return new SlashCommandDispatcher(sessionCommands(), modelCommands(), agentCommands(),
-        reporter, terminal.terminal());
+    return new SlashCommandDispatcher(sessionCommands(), modelCommands(), providerCommands(),
+        agentCommands(), reporter, terminal.terminal());
+  }
+
+  ProviderSlashCommands providerCommands() {
+    return new ProviderSlashCommands(
+        new ListProvidersQueryService(providers, applicationMapper),
+        new SwitchProviderService(providers, applicationMapper),
+        new StartSessionService(applicationMapper),
+        modelCommands(), mapper, terminal.terminal());
   }
 
   SessionSlashCommands sessionCommands() {
@@ -134,7 +160,8 @@ final class CliTestContext {
   /** The command line as {@link PicocliRunner} builds it, with the subcommands. */
   CommandLine commandLine() {
     return new CommandLine(command())
-        .addSubcommand(new ListModelsCommand(modelListPrinter(), properties))
+        .addSubcommand(new ListModelsCommand(modelListPrinter(),
+            new SwitchProviderService(providers, applicationMapper), mapper, properties))
         .addSubcommand(new RunningModelsCommand(modelListPrinter()))
         .setExecutionExceptionHandler(new PicocliExceptionHandler(reporter));
   }
@@ -159,6 +186,7 @@ final class CliTestContext {
         new StartSessionService(applicationMapper),
         new ResumeSessionService(catalog, providers, applicationMapper),
         new SwitchModelService(models, applicationMapper),
+        new SwitchProviderService(providers, applicationMapper),
         mapper, turnExecutor(),
         new ReplRunner(terminal.terminal(), turnExecutor(), dispatcher(), properties),
         reporter, properties, displayOptions);
